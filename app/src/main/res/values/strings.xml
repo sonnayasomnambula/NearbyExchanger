@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">NearbyExchanger</string>
+    <string name="title_activity_main">MainActivity</string>
+    <string name="connection_state_not_connected">Not connected</string>
+    <string name="connection_state_advertising">Advertising...</string>
+    <string name="connection_state_discovering">Discovering...</string>
+    <string name="connection_state_connected">Connected</string>
+    <string name="advertiser">Advertiser</string>
+    <string name="discoverer">Discoverer</string>
+    <string name="send_label">Send</string>
+    <string name="save_to">Save to:</string>
+    <string name="add_location">Add location</string>
+    <string name="add_location_proposal">Tap + to add location</string>
+    <string name="starting_hint">Select the "Advertiser" or "Discoverer" role on this device. Select the opposite role on the other device.</string>
+</resources>
