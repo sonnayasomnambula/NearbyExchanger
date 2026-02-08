@@ -5,21 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -28,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.sonnayasomnambula.nearby.exchanger.MainScreenEvent
@@ -130,106 +121,13 @@ fun MainScreenPortrait(
                 )
             }
 
-            Card(
-                modifier = Modifier
+            LocationList(
+                state.locations,
+                state.currentLocation,
+                onEvent,
+                Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    // Заголовок с кнопкой добавления
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.save_to),
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        // Кнопка "плюсик" для добавления
-                        IconButton(
-                            onClick = {
-                                onEvent(MainScreenEvent.AddLocationRequested)
-                            },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = stringResource(R.string.add_location),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Список мест сохранения
-                    if (state.saveLocations.isEmpty()) {
-                        // Пустой список
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(60.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = stringResource(R.string.add_location_proposal),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
-                    } else {
-                        // Список выбранных папок с radio buttons
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            state.saveLocations.forEach { location ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onEvent(MainScreenEvent.LocationSelected(location.id))
-                                        },
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = location.isSelected,
-                                        onClick = {
-                                            onEvent(MainScreenEvent.LocationSelected(location.id))
-                                        }
-                                    )
-
-                                    Column(
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = location.name,
-                                            fontSize = 14.sp,
-                                            fontWeight = if (location.isSelected) FontWeight.Medium
-                                            else FontWeight.Normal
-                                        )
-                                        Text(
-                                            text = location.uri.toString(),
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                    .weight(1f))
 
             Text(
                 text = state.statusText,

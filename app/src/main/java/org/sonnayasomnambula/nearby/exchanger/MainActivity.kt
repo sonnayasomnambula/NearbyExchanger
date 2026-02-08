@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
                             Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
 
-                viewModel.onLocationPicked(
+                viewModel.addSaveLocation(
                     uri = uri,
                     name = uri.lastPathSegment ?: "Folder"
                 )
