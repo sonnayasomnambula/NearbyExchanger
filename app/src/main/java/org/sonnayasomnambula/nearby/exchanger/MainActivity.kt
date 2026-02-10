@@ -1,8 +1,12 @@
 package org.sonnayasomnambula.nearby.exchanger
 
 import MainScreen
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 
@@ -11,6 +15,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -21,7 +27,9 @@ import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainScreenViewModel by viewModels()
+    private val viewModel: MainScreenViewModel by viewModels() {
+        MainScreenViewModelFactory(application as MyApplication)
+    }
 
     private val folderPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -57,6 +65,10 @@ class MainActivity : ComponentActivity() {
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
+
+                        is MainScreenEffect.CheckLocationAccess -> {
+                            checkLocationAccess(effect.uri)
+                        }
                     }
                 }
             }
@@ -76,5 +88,35 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.onEvent(MainScreenEvent.ActivityStarted)
+    }
+
+    private fun checkLocationAccess(uri: Uri) {
+        val hasAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Для Android 10+ (API 29+) используем persistedUriPermissions
+            contentResolver.persistedUriPermissions.any {
+                it.uri == uri && it.isReadPermission && it.isWritePermission
+            }
+        } else {
+            // Для Android ниже 10 проверяем разрешения в манифесте
+            val writePermission = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+
+            val readPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Для API 23+ также нужно READ_EXTERNAL_STORAGE
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                // До API 23 разрешения даются при установке
+                true
+            }
+
+            writePermission && readPermission
+        }
+
+        viewModel.onEvent(MainScreenEvent.LocationAccessChecked(uri, hasAccess))
     }
 }

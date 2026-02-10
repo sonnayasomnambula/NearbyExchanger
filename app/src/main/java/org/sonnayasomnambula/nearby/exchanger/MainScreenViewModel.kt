@@ -1,17 +1,16 @@
 package org.sonnayasomnambula.nearby.exchanger
 
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import androidx.core.net.toUri
+import kotlinx.coroutines.runBlocking
 
 enum class Role { ADVERTISER, DISCOVERER }
 
@@ -30,11 +29,14 @@ data class MainScreenState (
     val statusText: String = ""
 )
 
+// model => activity
 sealed interface MainScreenEffect {
     data object OpenFolderPicker : MainScreenEffect
     data class ShowMessage(val text: String) : MainScreenEffect
+    data class CheckLocationAccess(val uri: Uri) : MainScreenEffect
 }
 
+// activity/composable => model
 sealed interface MainScreenEvent {
     data class RoleSelected(val role: Role) : MainScreenEvent
     data object AddLocationRequested : MainScreenEvent
@@ -42,10 +44,12 @@ sealed interface MainScreenEvent {
     data class LocationSelected(val uri: Uri) : MainScreenEvent
     data object SendClicked : MainScreenEvent
     data object ActivityStarted: MainScreenEvent
+    data class LocationAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
 }
 
 class MainScreenViewModel(
-    private val storage: Storage
+    private val storage: Storage,
+    private val locationProvider: LocationProvider
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MainScreenState())
@@ -62,67 +66,64 @@ class MainScreenViewModel(
             is MainScreenEvent.LocationSelected -> setCurrentLocation(event.uri)
             is MainScreenEvent.RemoveLocationRequested -> removeSaveLocation(event.uri)
             is MainScreenEvent.SendClicked -> onSendClicked()
+            is MainScreenEvent.LocationAccessChecked -> onLocationAccessChecked(event.uri, event.hasAccess)
+        }
+    }
+
+    private fun onLocationAccessChecked(uri: Uri, hasAccess: Boolean) {
+        if (!hasAccess) {
+            viewModelScope.launch {
+                val curState = _state.value
+                val updatedLocations = curState.locations.filterNot { it.toString() == uri.toString() }
+                val updatedCurrentLocation = if (curState.currentLocation?.toString() == uri.toString()) null else curState.currentLocation
+
+                storage.updateLocations(updatedLocations)
+                storage.updateCurrentLocation(updatedCurrentLocation)
+
+                _state.update { currentState ->
+                    currentState.copy(
+                        locations = updatedLocations,
+                        currentLocation = updatedCurrentLocation,
+                    )
+                }
+
+                _effects.send(MainScreenEffect.OpenFolderPicker) // TODO RequestLocationAccess(LOST_PERMISSION)
+            }
         }
     }
 
     private fun onActivityStarted() {
         viewModelScope.launch {
-            // 1. Загружаем сохранённое состояние
             val savedState = storage.getCurrentState()
 
-            // 2. Обновляем UI с загруженными данными
+            val (locations, currentLocation) = if (savedState.locations.isNotEmpty()) {
+                savedState.locations to savedState.currentLocation
+            } else {
+                locationProvider.getDefaultLocation()?.let { defaultLocation ->
+                    listOf(defaultLocation) to defaultLocation.uri
+                } ?: (emptyList<SaveLocation>() to null)
+            }
+
             _state.update { it.copy(
-                currentRole = savedState.currentRole,
-                locations = savedState.locations,
-                currentLocation = savedState.currentLocation
+                locations = locations,
+                currentLocation = currentLocation
             ) }
 
-            // 3. Добавляем Downloads если нет
-            addDownloadsIfNeeded(savedState.locations)
-
-            // 4. Проверяем текущую локацию
             savedState.currentLocation?.let { uri ->
-                // TODO
+                if (isValidLocation(uri)) {
+                    _effects.send(MainScreenEffect.CheckLocationAccess(uri))
+                } else {
+                    removeSaveLocation(uri)
+                }
             }
         }
     }
 
-    private suspend fun addDownloadsIfNeeded(existingLocations: List<SaveLocation>) {
-        val downloadsUri = getDownloadsUri() ?: return
-
-        val downloadsAlreadyExists = existingLocations.any { location ->
-            location.uri == downloadsUri
-        }
-
-        if (!downloadsAlreadyExists) {
-            val downloadsLocation = SaveLocation(
-                name = "Downloads",
-                uri = downloadsUri
-            )
-
-            // Добавляем в storage
-            storage.addLocation(downloadsLocation)
-
-            // Обновляем state
-            _state.update { currentState ->
-                currentState.copy(
-                    locations = currentState.locations + downloadsLocation
-                )
-            }
-        }
-    }
-
-    private fun getDownloadsUri(): Uri? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Для Android 10+ используем MediaStore
-            Environment.DIRECTORY_DOWNLOADS?.let { directory ->
-                "content://media/external/downloads".toUri()
-            }
-        } else {
-            // Для старых версий
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.let { file ->
-                Uri.fromFile(file)
-            }
+    private fun isValidLocation(uri: Uri): Boolean {
+        return try {
+            !uri.toString().isBlank() && !uri.scheme.isNullOrBlank()
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -137,6 +138,12 @@ class MainScreenViewModel(
                     currentLocation = uri
                 )
             }
+        }
+
+        viewModelScope.launch {
+            val currentState = _state.value
+            storage.updateLocations(currentState.locations)
+            storage.updateCurrentLocation(currentState.currentLocation)
         }
     }
 
@@ -153,6 +160,12 @@ class MainScreenViewModel(
                 locations = newLocations,
                 currentLocation = newCurrentUri
             )
+        }
+
+        viewModelScope.launch {
+            val currentState = _state.value
+            storage.updateLocations(currentState.locations)
+            storage.updateCurrentLocation(currentState.currentLocation)
         }
     }
 

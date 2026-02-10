@@ -3,22 +3,26 @@ package org.sonnayasomnambula.nearby.exchanger
 import android.content.Context
 import android.net.Uri
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.IOException
 
+interface Storage {
+    suspend fun updateLocations(locations: List<SaveLocation>)
+    suspend fun updateCurrentLocation(uri: Uri?)
+    suspend fun getCurrentState(): MainScreenState
+}
+
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "main_screen_state")
 
-class Storage(private val context: Context) {
+class DataStoreStorage(private val context: Context) : Storage {
 
     private companion object {
         // Ключи для хранения данных
@@ -82,18 +86,7 @@ class Storage(private val context: Context) {
         }
     }
 
-    // Обновление отдельных полей состояния
-    suspend fun updateCurrentRole(role: Role?) {
-        context.dataStore.edit { preferences ->
-            if (role != null) {
-                preferences[CURRENT_ROLE_KEY] = role.name
-            } else {
-                preferences.remove(CURRENT_ROLE_KEY)
-            }
-        }
-    }
-
-    suspend fun updateLocations(locations: List<SaveLocation>) {
+    override suspend fun updateLocations(locations: List<SaveLocation>) {
         context.dataStore.edit { preferences ->
             val locationsJson = json.encodeToString(
                 locations.map { SaveLocationDto.fromSaveLocation(it) }
@@ -102,21 +95,7 @@ class Storage(private val context: Context) {
         }
     }
 
-    suspend fun addLocation(location: SaveLocation) {
-        val currentState = getCurrentState()
-        val updatedLocations = currentState.locations.toMutableList().apply {
-            add(location)
-        }
-        updateLocations(updatedLocations)
-    }
-
-    suspend fun removeLocation(uri: Uri) {
-        val currentState = getCurrentState()
-        val updatedLocations = currentState.locations.filterNot { it.uri == uri }
-        updateLocations(updatedLocations)
-    }
-
-    suspend fun updateCurrentLocation(uri: Uri?) {
+    override suspend fun updateCurrentLocation(uri: Uri?) {
         context.dataStore.edit { preferences ->
             if (uri != null) {
                 preferences[CURRENT_LOCATION_KEY] = uri.toString()
@@ -126,8 +105,7 @@ class Storage(private val context: Context) {
         }
     }
 
-    // Получение текущего состояния (синхронно)
-    suspend fun getCurrentState(): MainScreenState {
+    override suspend fun getCurrentState(): MainScreenState {
         return context.dataStore.data
             .catch { exception ->
                 if (exception is IOException) {
