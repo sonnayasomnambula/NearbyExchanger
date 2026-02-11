@@ -1,6 +1,7 @@
 package org.sonnayasomnambula.nearby.exchanger.ui.screen
 
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -39,34 +41,128 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.sonnayasomnambula.nearby.exchanger.ConnectionState
 import org.sonnayasomnambula.nearby.exchanger.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
+import org.sonnayasomnambula.nearby.exchanger.Role
 import org.sonnayasomnambula.nearby.exchanger.SaveLocation
 
 @Composable
-fun RightPanelContent(
+fun ConnectionState.getDisplayText(): String {
+    return when (this) {
+        ConnectionState.DISCONNECTED -> stringResource(R.string.connection_state_not_connected)
+        ConnectionState.ADVERTISING -> stringResource(R.string.connection_state_advertising)
+        ConnectionState.DISCOVERING -> stringResource(R.string.connection_state_discovering)
+        ConnectionState.CONNECTED -> stringResource(R.string.connection_state_connected)
+    }
+}
+
+@Composable
+fun ConnectionStateText(connectionState: ConnectionState) {
+    Text(
+        text = connectionState.getDisplayText(),
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+fun RoleSelectorRow(
+    role: Role,
+    state: MainScreenState,
+    onEvent: (MainScreenEvent) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clickable {
+                onEvent(MainScreenEvent.RoleSelected(role))
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val textResourceId = if (role == Role.ADVERTISER) R.string.advertiser else R.string.discoverer
+
+        RadioButton(
+            enabled = state.connectionState != ConnectionState.CONNECTED,
+            selected = state.currentRole == role,
+            onClick = {
+                onEvent(MainScreenEvent.RoleSelected(role))
+            }
+        )
+        Text(
+            text = stringResource(textResourceId),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun ActionButton(
+    text: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        enabled = enabled,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Text(
+            text = text,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun BigPanel(
     state: MainScreenState,
     onEvent: (MainScreenEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LocationList(state.locations, state.currentLocation, onEvent, modifier)
+    when (state.connectionState) {
+        ConnectionState.DISCONNECTED -> {
+            StartingHint(modifier)
+        }
+        ConnectionState.ADVERTISING,
+        ConnectionState.DISCOVERING-> {
+            AvailableDevicesList()
+        }
+        ConnectionState.CONNECTED -> {
+            LocationList(state.locations, state.currentLocation, onEvent, modifier)
+        }
+    }
 }
 
 @Composable
-private fun NotConnectedRightPanel() {
+private fun StartingHint(
+    modifier: Modifier = Modifier
+) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = stringResource(R.string.starting_hint),
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(16.dp)
         )
     }
+}
+
+@Composable
+fun AvailableDevicesList() {
+
 }
 
 @Composable
@@ -202,4 +298,14 @@ fun LocationList(
             }
         }
     }
+}
+
+@Composable
+fun SmallText(text: String) {
+    Text(
+        text = text,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Normal,
+        modifier = Modifier.fillMaxWidth()
+    )
 }

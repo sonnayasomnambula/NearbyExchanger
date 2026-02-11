@@ -3,30 +3,60 @@ package org.sonnayasomnambula.nearby.exchanger
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 enum class Role { ADVERTISER, DISCOVERER }
 
-enum class ConnectionState { NOT_CONNECTED, ADVERTISING, DISCOVERING, CONNECTED }
+enum class ConnectionState { DISCONNECTED, ADVERTISING, DISCOVERING, CONNECTED }
 
 data class SaveLocation(
     val name: String,
     val uri: Uri,
 )
 
+data class Device(
+    /// Уникальный идентификатор конечной точки, предоставляемый Nearby API
+    val endpointId: String,
+    /// [DiscoveredEndpointInfo.endpointName] или [ConnectionInfo.endpointName]
+    val name: String,
+    /// Токен аутентификации (обычно 4-5 цифр), который нужно показать пользователю
+    val authenticationToken: String? = null,
+    /// Текущая стадия обмена с удалённым устройством
+    val connectionState: ConnectionState = ConnectionState.DISCONNECTED
+) {
+    enum class ConnectionState {
+        DISCONNECTED,
+        DISCOVERED,
+        CONNECTING,
+        AWAITING_CONFIRM,
+        CONNECTED,
+    }
+
+    fun update(
+        name: String? = null,
+        authenticationToken: String? = null,
+        connectionState: ConnectionState? = null
+    ): Device {
+        return this.copy(
+            name = name ?: this.name,
+            authenticationToken = authenticationToken ?: this.authenticationToken,
+            connectionState = connectionState ?: this.connectionState,
+        )
+    }
+}
+
 data class MainScreenState (
-    val connectionState: ConnectionState = ConnectionState.NOT_CONNECTED,
+    val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
     val currentRole: Role? = null,
     val locations: List<SaveLocation> = emptyList(),
     val currentLocation: Uri? = null,
-    val statusText: String = ""
+    val statusText: String = "",
+    val availableDevices: List<Device> = emptyList(),
 )
 
 // model => activity
@@ -43,6 +73,7 @@ sealed interface MainScreenEvent {
     data class RemoveLocationRequested(val uri: Uri) : MainScreenEvent
     data class LocationSelected(val uri: Uri) : MainScreenEvent
     data object SendClicked : MainScreenEvent
+    data object DisconnectClicked : MainScreenEvent
     data object ActivityStarted: MainScreenEvent
     data class LocationAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
 }
@@ -66,6 +97,7 @@ class MainScreenViewModel(
             is MainScreenEvent.LocationSelected -> setCurrentLocation(event.uri)
             is MainScreenEvent.RemoveLocationRequested -> removeSaveLocation(event.uri)
             is MainScreenEvent.SendClicked -> onSendClicked()
+            is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
             is MainScreenEvent.LocationAccessChecked -> onLocationAccessChecked(event.uri, event.hasAccess)
         }
     }
@@ -178,6 +210,10 @@ class MainScreenViewModel(
             }
             return
         }
+    }
+
+    private fun onDisconnectClicked() {
+
     }
 
     private fun setCurrentLocation(uri: Uri) {

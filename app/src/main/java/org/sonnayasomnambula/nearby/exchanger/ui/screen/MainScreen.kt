@@ -13,16 +13,6 @@ enum class ScreenOrientation {
     LANDSCAPE
 }
 
-@Composable
-fun ConnectionState.getDisplayText(): String {
-    return when (this) {
-        ConnectionState.NOT_CONNECTED -> stringResource(R.string.connection_state_not_connected)
-        ConnectionState.ADVERTISING -> stringResource(R.string.connection_state_advertising)
-        ConnectionState.DISCOVERING -> stringResource(R.string.connection_state_discovering)
-        ConnectionState.CONNECTED -> stringResource(R.string.connection_state_connected)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(

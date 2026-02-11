@@ -8,6 +8,7 @@
     <string name="advertiser">Advertiser</string>
     <string name="discoverer">Discoverer</string>
     <string name="send_label">Send</string>
+    <string name="disconnect_label">Disconnect</string>
     <string name="save_to">Save to:</string>
     <string name="add_location">Add location</string>
     <string name="add_location_proposal">Tap + to add location</string>

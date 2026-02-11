@@ -1,6 +1,5 @@
 package org.sonnayasomnambula.nearby.exchanger.ui.screen
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,23 +8,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import getDisplayText
+import org.sonnayasomnambula.nearby.exchanger.ConnectionState
 import org.sonnayasomnambula.nearby.exchanger.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
@@ -60,100 +51,42 @@ fun MainScreenLandscape(
                         .fillMaxHeight(),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // статус соединения
-                    Text(
-                        text = state.connectionState.getDisplayText(),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    ConnectionStateText(state.connectionState)
 
                     // выбор роли
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // ADVERTISER
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onEvent(MainScreenEvent.RoleSelected(Role.ADVERTISER))
-                                },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            RadioButton(
-                                selected = false,
-                                onClick = {
-                                    onEvent(MainScreenEvent.RoleSelected(Role.ADVERTISER))
-                                }
-                            )
-                            Text(
-                                text = stringResource(R.string.advertiser),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // DISCOVERER
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onEvent(MainScreenEvent.RoleSelected(Role.DISCOVERER))
-                                },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            RadioButton(
-                                selected = false,
-                                onClick = {
-                                    onEvent(MainScreenEvent.RoleSelected(Role.DISCOVERER))
-                                }
-                            )
-                            Text(
-                                text = stringResource(R.string.discoverer),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        RoleSelectorRow(Role.ADVERTISER, state, onEvent, Modifier.fillMaxWidth())
+                        RoleSelectorRow(Role.DISCOVERER, state, onEvent, Modifier.fillMaxWidth())
                     }
 
-                    // Кнопка отправки
-                    Button(
-                        onClick = {
-                            onEvent(MainScreenEvent.SendClicked)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        enabled = false,
-                        shape = MaterialTheme.shapes.medium
+                    ActionButton(
+                        stringResource(R.string.send_label),
+                        state.connectionState == ConnectionState.CONNECTED
                     ) {
-                        Text(
-                            text = stringResource(R.string.send_label),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        onEvent(MainScreenEvent.SendClicked)
+                    }
+
+                    ActionButton(
+                        stringResource(R.string.disconnect_label),
+                        state.connectionState == ConnectionState.CONNECTED
+                    ) {
+                        onEvent(MainScreenEvent.DisconnectClicked)
                     }
                 }
 
-                // Правая колонка: список локаций
-                LocationList(
-                    state.locations,
-                    state.currentLocation,
+                BigPanel(
+                    state,
                     onEvent,
                     Modifier
+                        .weight(1f)
                         .fillMaxHeight()
-                        .weight(1f))
+                )
             }
 
-            // Текст статуса в подвале
-            Text(
-                text = state.statusText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                modifier = Modifier.fillMaxWidth()
-            )
+            SmallText(state.statusText)
         }
     }
 }
