@@ -43,6 +43,7 @@ android {
 dependencies {
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation(libs.androidx.localbroadcastmanager)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

@@ -1,6 +1,7 @@
 package org.sonnayasomnambula.nearby.exchanger
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.channels.Channel
@@ -19,7 +20,7 @@ data class SaveLocation(
     val uri: Uri,
 )
 
-data class Device(
+data class RemoteDevice(
     /// Уникальный идентификатор конечной точки, предоставляемый Nearby API
     val endpointId: String,
     /// [DiscoveredEndpointInfo.endpointName] или [ConnectionInfo.endpointName]
@@ -41,7 +42,7 @@ data class Device(
         name: String? = null,
         authenticationToken: String? = null,
         connectionState: ConnectionState? = null
-    ): Device {
+    ): RemoteDevice {
         return this.copy(
             name = name ?: this.name,
             authenticationToken = authenticationToken ?: this.authenticationToken,
@@ -56,7 +57,7 @@ data class MainScreenState (
     val locations: List<SaveLocation> = emptyList(),
     val currentLocation: Uri? = null,
     val statusText: String = "",
-    val availableDevices: List<Device> = emptyList(),
+    val availableDevices: List<RemoteDevice> = emptyList(),
 )
 
 // model => activity
@@ -64,6 +65,8 @@ sealed interface MainScreenEffect {
     data object OpenFolderPicker : MainScreenEffect
     data class ShowMessage(val text: String) : MainScreenEffect
     data class CheckLocationAccess(val uri: Uri) : MainScreenEffect
+    data class StartForegroundService(val role: Role) : MainScreenEffect
+    data object StopForegroundService : MainScreenEffect
 }
 
 // activity/composable => model
@@ -75,6 +78,8 @@ sealed interface MainScreenEvent {
     data object SendClicked : MainScreenEvent
     data object DisconnectClicked : MainScreenEvent
     data object ActivityStarted: MainScreenEvent
+    data class ServiceStarted(val role: Role): MainScreenEvent
+    data object ServiceStopped: MainScreenEvent
     data class LocationAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
 }
 
@@ -83,6 +88,8 @@ class MainScreenViewModel(
     private val locationProvider: LocationProvider
 ) : ViewModel() {
 
+    private val LOG_TRACE = "org.sonnayasomnambula.trace"
+
     private val _state = MutableStateFlow(MainScreenState())
     val state: StateFlow<MainScreenState> = _state
 
@@ -90,8 +97,11 @@ class MainScreenViewModel(
     val effects = _effects.receiveAsFlow()
 
     fun onEvent(event: MainScreenEvent) {
+        Log.d(LOG_TRACE, "model: ${event.toString()}")
         when (event) {
             is MainScreenEvent.ActivityStarted -> onActivityStarted()
+            is MainScreenEvent.ServiceStarted -> onServiceStarted(event.role)
+            is MainScreenEvent.ServiceStopped -> onServiceStopped()
             is MainScreenEvent.RoleSelected -> onRoleSelected(event.role)
             is MainScreenEvent.AddLocationRequested -> requestAddLocation()
             is MainScreenEvent.LocationSelected -> setCurrentLocation(event.uri)
@@ -99,6 +109,31 @@ class MainScreenViewModel(
             is MainScreenEvent.SendClicked -> onSendClicked()
             is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
             is MainScreenEvent.LocationAccessChecked -> onLocationAccessChecked(event.uri, event.hasAccess)
+        }
+    }
+
+    private fun onServiceStarted(role: Role) {
+        viewModelScope.launch {
+            _state.update { currentState ->
+                currentState.copy(
+                    currentRole = role,
+                    connectionState = when (role) {
+                        Role.ADVERTISER -> ConnectionState.ADVERTISING
+                        Role.DISCOVERER -> ConnectionState.DISCOVERING
+                    }
+                )
+            }
+        }
+    }
+
+    private fun onServiceStopped() {
+        viewModelScope.launch {
+            _state.update { currentState ->
+                currentState.copy(
+                    connectionState = ConnectionState.DISCONNECTED,
+                    currentRole = null
+                )
+            }
         }
     }
 
@@ -129,6 +164,8 @@ class MainScreenViewModel(
             val savedState = storage.getCurrentState()
 
             val (locations, currentLocation) = if (savedState.locations.isNotEmpty()) {
+                Log.d(LOG_TRACE, "model: loaded locations ${savedState.locations.joinToString { it.uri.toString() }}")
+                Log.d(LOG_TRACE, "model: loaded current location ${savedState.currentLocation?.toString() ?: "null"}")
                 savedState.locations to savedState.currentLocation
             } else {
                 locationProvider.getDefaultLocation()?.let { defaultLocation ->
@@ -213,7 +250,9 @@ class MainScreenViewModel(
     }
 
     private fun onDisconnectClicked() {
-
+        viewModelScope.launch {
+            _effects.send(MainScreenEffect.StopForegroundService)
+        }
     }
 
     private fun setCurrentLocation(uri: Uri) {
@@ -227,8 +266,8 @@ class MainScreenViewModel(
     }
 
     private fun onRoleSelected(role: Role) {
-        _state.update {
-            it.copy(currentRole = role)
+        viewModelScope.launch {
+            _effects.send(MainScreenEffect.StartForegroundService(role))
         }
     }
 }

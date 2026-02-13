@@ -15,4 +15,5 @@
     <string name="starting_hint">Select the \"Advertiser\" or \"Discoverer\" role on this device. Select the opposite role on the other device.</string>
     <string name="delete_location_title">Delete location</string>
     <string name="delete_location_text">Are you sure you want to delete this location?</string>
+    <string name="operation_not_allowed">Operation not allowed</string>
 </resources>
