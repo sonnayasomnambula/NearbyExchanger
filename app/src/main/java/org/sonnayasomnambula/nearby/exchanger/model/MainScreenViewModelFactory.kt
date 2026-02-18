@@ -9,6 +9,6 @@ class MainScreenViewModelFactory(
     private val app: MyApplication
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return MainScreenViewModel(app.storage, app.locationProvider) as T
+        return MainScreenViewModel(app.storage, app.directoryProvider) as T
     }
 }

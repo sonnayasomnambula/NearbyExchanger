@@ -13,13 +13,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
-import org.sonnayasomnambula.nearby.exchanger.model.Role
-import org.sonnayasomnambula.nearby.exchanger.model.SaveLocation
+import org.sonnayasomnambula.nearby.exchanger.model.SaveDir
 import java.io.IOException
+import androidx.core.net.toUri
 
 interface Storage {
-    suspend fun updateLocations(locations: List<SaveLocation>)
-    suspend fun updateCurrentLocation(uri: Uri?)
+    suspend fun updateDirs(dirs: List<SaveDir>)
+    suspend fun updateCurrentDir(uri: Uri?)
     suspend fun getCurrentState(): MainScreenState
 }
 
@@ -29,9 +29,8 @@ class DataStoreStorage(private val context: Context) : Storage {
 
     private companion object {
         // Ключи для хранения данных
-        private val CURRENT_ROLE_KEY = stringPreferencesKey("current_role")
-        private val LOCATIONS_KEY = stringPreferencesKey("locations")
-        private val CURRENT_LOCATION_KEY = stringPreferencesKey("current_location")
+        private val KEY_DIRS = stringPreferencesKey("dirs")
+        private val KEY_CURRENT_DIR = stringPreferencesKey("current_dir")
     }
 
     private val json = Json {
@@ -50,24 +49,17 @@ class DataStoreStorage(private val context: Context) : Storage {
         }
         .map { preferences ->
             MainScreenState(
-                currentRole = preferences[CURRENT_ROLE_KEY]?.let { roleString ->
+                saveDirs = preferences[KEY_DIRS]?.let { dirsJson ->
                     try {
-                        Role.valueOf(roleString)
-                    } catch (e: IllegalArgumentException) {
-                        null
-                    }
-                },
-                locations = preferences[LOCATIONS_KEY]?.let { locationsJson ->
-                    try {
-                        json.decodeFromString<List<SaveLocationDto>>(locationsJson)
-                            .map { it.toSaveLocation() }
+                        json.decodeFromString<List<SaveDirDto>>(dirsJson)
+                            .map { it.toSaveDir() }
                     } catch (e: Exception) {
                         emptyList()
                     }
                 } ?: emptyList(),
-                currentLocation = preferences[CURRENT_LOCATION_KEY]?.let { uriString ->
+                currentDir = preferences[KEY_CURRENT_DIR]?.let { uriString ->
                     try {
-                        Uri.parse(uriString)
+                        uriString.toUri()
                     } catch (e: Exception) {
                         null
                     }
@@ -78,32 +70,30 @@ class DataStoreStorage(private val context: Context) : Storage {
     // Сохранение всего состояния
     suspend fun saveMainScreenState(state: MainScreenState) {
         context.dataStore.edit { preferences ->
-            preferences[CURRENT_ROLE_KEY] = state.currentRole?.name ?: ""
-
-            val locationsJson = json.encodeToString(
-                state.locations.map { SaveLocationDto.fromSaveLocation(it) }
+            val dirsJson = json.encodeToString(
+                state.saveDirs.map { SaveDirDto.fromSaveDir(it) }
             )
-            preferences[LOCATIONS_KEY] = locationsJson
 
-            preferences[CURRENT_LOCATION_KEY] = state.currentLocation?.toString() ?: ""
+            preferences[KEY_DIRS] = dirsJson
+            preferences[KEY_CURRENT_DIR] = state.currentDir?.toString() ?: ""
         }
     }
 
-    override suspend fun updateLocations(locations: List<SaveLocation>) {
+    override suspend fun updateDirs(dirs: List<SaveDir>) {
         context.dataStore.edit { preferences ->
-            val locationsJson = json.encodeToString(
-                locations.map { SaveLocationDto.fromSaveLocation(it) }
+            val dirsJson = json.encodeToString(
+                dirs.map { SaveDirDto.fromSaveDir(it) }
             )
-            preferences[LOCATIONS_KEY] = locationsJson
+            preferences[KEY_DIRS] = dirsJson
         }
     }
 
-    override suspend fun updateCurrentLocation(uri: Uri?) {
+    override suspend fun updateCurrentDir(uri: Uri?) {
         context.dataStore.edit { preferences ->
             if (uri != null) {
-                preferences[CURRENT_LOCATION_KEY] = uri.toString()
+                preferences[KEY_CURRENT_DIR] = uri.toString()
             } else {
-                preferences.remove(CURRENT_LOCATION_KEY)
+                preferences.remove(KEY_CURRENT_DIR)
             }
         }
     }
@@ -119,24 +109,17 @@ class DataStoreStorage(private val context: Context) : Storage {
             }
             .map { preferences ->
                 MainScreenState(
-                    currentRole = preferences[CURRENT_ROLE_KEY]?.let { roleString ->
+                    saveDirs = preferences[KEY_DIRS]?.let { dirsJson ->
                         try {
-                            Role.valueOf(roleString)
-                        } catch (e: IllegalArgumentException) {
-                            null
-                        }
-                    },
-                    locations = preferences[LOCATIONS_KEY]?.let { locationsJson ->
-                        try {
-                            json.decodeFromString<List<SaveLocationDto>>(locationsJson)
-                                .map { it.toSaveLocation() }
+                            json.decodeFromString<List<SaveDirDto>>(dirsJson)
+                                .map { it.toSaveDir() }
                         } catch (e: Exception) {
                             emptyList()
                         }
                     } ?: emptyList(),
-                    currentLocation = preferences[CURRENT_LOCATION_KEY]?.let { uriString ->
+                    currentDir = preferences[KEY_CURRENT_DIR]?.let { uriString ->
                         try {
-                            Uri.parse(uriString)
+                            uriString.toUri()
                         } catch (e: Exception) {
                             null
                         }
@@ -154,21 +137,21 @@ class DataStoreStorage(private val context: Context) : Storage {
     }
 }
 
-// DTO для сериализации SaveLocation (Uri не сериализуется напрямую)
+// DTO для сериализации SaveDir (Uri не сериализуется напрямую)
 @Serializable
-private data class SaveLocationDto(
+private data class SaveDirDto(
     val name: String,
     val uriString: String
 ) {
-    fun toSaveLocation(): SaveLocation {
-        return SaveLocation(name, Uri.parse(uriString))
+    fun toSaveDir(): SaveDir {
+        return SaveDir(name, uriString.toUri())
     }
 
     companion object {
-        fun fromSaveLocation(saveLocation: SaveLocation): SaveLocationDto {
-            return SaveLocationDto(
-                name = saveLocation.name,
-                uriString = saveLocation.uri.toString()
+        fun fromSaveDir(saveDir: SaveDir): SaveDirDto {
+            return SaveDirDto(
+                name = saveDir.name,
+                uriString = saveDir.uri.toString()
             )
         }
     }

@@ -46,7 +46,7 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.Role
-import org.sonnayasomnambula.nearby.exchanger.model.SaveLocation
+import org.sonnayasomnambula.nearby.exchanger.model.SaveDir
 
 @Composable
 fun ConnectionState.getDisplayText(): String {
@@ -138,7 +138,7 @@ fun BigPanel(
             AvailableDevicesList()
         }
         ConnectionState.CONNECTED -> {
-            LocationList(state.locations, state.currentLocation, onEvent, modifier)
+            DirectoryList(state.saveDirs, state.currentDir, onEvent, modifier)
         }
     }
 }
@@ -166,30 +166,30 @@ fun AvailableDevicesList() {
 }
 
 @Composable
-fun LocationList(
-    saveLocations: List<SaveLocation>,
-    currentSaveLocation: Uri?,
+fun DirectoryList(
+    saveDirs: List<SaveDir>,
+    currentDir: Uri?,
     onEvent: (MainScreenEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var locationToDelete by remember { mutableStateOf<Uri?>(null) }
+    var dirsToDelete by remember { mutableStateOf<Uri?>(null) }
 
-    if (locationToDelete != null) {
+    if (dirsToDelete != null) {
         AlertDialog(
-            onDismissRequest = { locationToDelete = null },
-            title = { Text(stringResource(R.string.delete_location_title)) },
-            text = { Text(stringResource(R.string.delete_location_text)) },
+            onDismissRequest = { dirsToDelete = null },
+            title = { Text(stringResource(R.string.remove_directory_title)) },
+            text = { Text(stringResource(R.string.remove_directory_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onEvent(MainScreenEvent.RemoveLocationRequested(locationToDelete!!))
-                        locationToDelete = null
+                        onEvent(MainScreenEvent.RemoveDirectoryRequested(dirsToDelete!!))
+                        dirsToDelete = null
                     }
                 ) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(
-                    onClick = { locationToDelete = null }
+                    onClick = { dirsToDelete = null }
                 ) { Text("Cancel") }
             }
         )
@@ -219,13 +219,13 @@ fun LocationList(
                 // Кнопка "плюсик" для добавления
                 IconButton(
                     onClick = {
-                        onEvent(MainScreenEvent.AddLocationRequested)
+                        onEvent(MainScreenEvent.AddDirectoryRequested)
                     },
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = stringResource(R.string.add_location),
+                        contentDescription = stringResource(R.string.add_directory),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -234,7 +234,7 @@ fun LocationList(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Список мест сохранения
-            if (saveLocations.isEmpty()) {
+            if (saveDirs.isEmpty()) {
                 // Пустой список
                 Box(
                     modifier = Modifier
@@ -243,7 +243,7 @@ fun LocationList(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = stringResource(R.string.add_location_proposal),
+                        text = stringResource(R.string.add_directory_proposal),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
@@ -254,24 +254,24 @@ fun LocationList(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(saveLocations) { location ->
+                    items(saveDirs) { dir ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .combinedClickable(
                                     onClick = {
-                                        onEvent(MainScreenEvent.LocationSelected(location.uri))
+                                        onEvent(MainScreenEvent.DirectorySelected(dir.uri))
                                     },
                                     onLongClick = {
-                                        locationToDelete = location.uri
+                                        dirsToDelete = dir.uri
                                     },
                                 ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
-                                selected = location.uri == currentSaveLocation,
+                                selected = dir.uri == currentDir,
                                 onClick = {
-                                    onEvent(MainScreenEvent.LocationSelected(location.uri))
+                                    onEvent(MainScreenEvent.DirectorySelected(dir.uri))
                                 }
                             )
 
@@ -279,13 +279,13 @@ fun LocationList(
                                 modifier = Modifier.padding(start = 8.dp)
                             ) {
                                 Text(
-                                    text = location.name,
+                                    text = dir.name,
                                     fontSize = 14.sp,
-                                    fontWeight = if (location.uri == currentSaveLocation) FontWeight.Medium
+                                    fontWeight = if (dir.uri == currentDir) FontWeight.Medium
                                     else FontWeight.Normal
                                 )
                                 Text(
-                                    text = location.uri.toString(),
+                                    text = dir.uri.toString(),
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,

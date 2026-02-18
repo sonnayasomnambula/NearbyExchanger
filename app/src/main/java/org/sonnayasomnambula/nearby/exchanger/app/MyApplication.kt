@@ -1,12 +1,12 @@
 package org.sonnayasomnambula.nearby.exchanger.app
 
 import android.app.Application
-import org.sonnayasomnambula.nearby.exchanger.model.AndroidLocationProvider
-import org.sonnayasomnambula.nearby.exchanger.model.LocationProvider
+import org.sonnayasomnambula.nearby.exchanger.model.AndroidDirectoryProvider
+import org.sonnayasomnambula.nearby.exchanger.model.DirectoryProvider
 
 class MyApplication : Application() {
-    val locationProvider: LocationProvider by lazy {
-        AndroidLocationProvider()
+    val directoryProvider: DirectoryProvider by lazy {
+        AndroidDirectoryProvider()
     }
 
     val storage: Storage by lazy {

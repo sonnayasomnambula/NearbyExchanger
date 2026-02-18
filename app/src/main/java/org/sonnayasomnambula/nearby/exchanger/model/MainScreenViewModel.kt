@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.service.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.app.Storage
-import org.sonnayasomnambula.nearby.exchanger.service.AdvertisingService
 import org.sonnayasomnambula.nearby.exchanger.service.ExchangeService
 import org.sonnayasomnambula.nearby.exchanger.service.ServiceCommand
 import org.sonnayasomnambula.nearby.exchanger.service.ServiceEvent
@@ -26,7 +25,7 @@ enum class Role { ADVERTISER, DISCOVERER }
 
 enum class ConnectionState { DISCONNECTED, ADVERTISING, DISCOVERING, CONNECTED }
 
-data class SaveLocation(
+data class SaveDir(
     val name: String,
     val uri: Uri,
 )
@@ -34,8 +33,8 @@ data class SaveLocation(
 data class MainScreenState (
     val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
     val currentRole: Role? = null,
-    val locations: List<SaveLocation> = emptyList(),
-    val currentLocation: Uri? = null,
+    val saveDirs: List<SaveDir> = emptyList(),
+    val currentDir: Uri? = null,
     val statusText: String = "",
     val availableDevices: List<RemoteDevice> = emptyList(),
 )
@@ -44,27 +43,27 @@ data class MainScreenState (
 sealed interface MainScreenEffect {
     data object OpenFolderPicker : MainScreenEffect
     data class ShowMessage(val text: String) : MainScreenEffect
-    data class CheckLocationAccess(val uri: Uri) : MainScreenEffect
+    data class CheckDirectoryAccess(val uri: Uri) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
 }
 
 // activity/composable => model
 sealed interface MainScreenEvent {
     data class RoleSelected(val role: Role) : MainScreenEvent
-    data object AddLocationRequested : MainScreenEvent
-    data class RemoveLocationRequested(val uri: Uri) : MainScreenEvent
-    data class LocationSelected(val uri: Uri) : MainScreenEvent
+    data object AddDirectoryRequested : MainScreenEvent
+    data class RemoveDirectoryRequested(val uri: Uri) : MainScreenEvent
+    data class DirectorySelected(val uri: Uri) : MainScreenEvent
     data object SendClicked : MainScreenEvent
     data object DisconnectClicked : MainScreenEvent
     data object ActivityStarted: MainScreenEvent
     data class ServiceStarted(val role: Role): MainScreenEvent
     data object ServiceStopped: MainScreenEvent
-    data class LocationAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
+    data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
 }
 
 class MainScreenViewModel(
     private val storage: Storage,
-    private val locationProvider: LocationProvider
+    private val directoryProvider: DirectoryProvider
 ) : ViewModel() {
 
     private val LOG_TRACE = "org.sonnayasomnambula.trace"
@@ -82,12 +81,12 @@ class MainScreenViewModel(
             is MainScreenEvent.ServiceStarted -> onServiceStarted(event.role)
             is MainScreenEvent.ServiceStopped -> onServiceStopped()
             is MainScreenEvent.RoleSelected -> onRoleSelected(event.role)
-            is MainScreenEvent.AddLocationRequested -> requestAddLocation()
-            is MainScreenEvent.LocationSelected -> setCurrentLocation(event.uri)
-            is MainScreenEvent.RemoveLocationRequested -> removeSaveLocation(event.uri)
+            is MainScreenEvent.AddDirectoryRequested -> requestAddDir()
+            is MainScreenEvent.DirectorySelected -> setCurrentDir(event.uri)
+            is MainScreenEvent.RemoveDirectoryRequested -> removeDir(event.uri)
             is MainScreenEvent.SendClicked -> onSendClicked()
             is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
-            is MainScreenEvent.LocationAccessChecked -> onLocationAccessChecked(event.uri, event.hasAccess)
+            is MainScreenEvent.DirectoryAccessChecked -> onDirectoryAccessChecked(event.uri, event.hasAccess)
         }
     }
 
@@ -102,6 +101,8 @@ class MainScreenViewModel(
                     }
                 )
             }
+            _effects.send(MainScreenEffect.)
+
         }
     }
 
@@ -159,24 +160,24 @@ class MainScreenViewModel(
         }
     }
 
-    private fun onLocationAccessChecked(uri: Uri, hasAccess: Boolean) {
+    private fun onDirectoryAccessChecked(uri: Uri, hasAccess: Boolean) {
         if (!hasAccess) {
             viewModelScope.launch {
                 val curState = _state.value
-                val updatedLocations = curState.locations.filterNot { it.toString() == uri.toString() }
-                val updatedCurrentLocation = if (curState.currentLocation?.toString() == uri.toString()) null else curState.currentLocation
+                val updatedDirs = curState.saveDirs.filterNot { it.toString() == uri.toString() }
+                val updatedCurrentDir = if (curState.currentDir?.toString() == uri.toString()) null else curState.currentDir
 
-                storage.updateLocations(updatedLocations)
-                storage.updateCurrentLocation(updatedCurrentLocation)
+                storage.updateDirs(updatedDirs)
+                storage.updateCurrentDir(updatedCurrentDir)
 
                 _state.update { currentState ->
                     currentState.copy(
-                        locations = updatedLocations,
-                        currentLocation = updatedCurrentLocation,
+                        saveDirs = updatedDirs,
+                        currentDir = updatedCurrentDir,
                     )
                 }
 
-                _effects.send(MainScreenEffect.OpenFolderPicker) // TODO RequestLocationAccess(LOST_PERMISSION)
+                _effects.send(MainScreenEffect.OpenFolderPicker)
             }
         }
     }
@@ -185,32 +186,32 @@ class MainScreenViewModel(
         viewModelScope.launch {
             val savedState = storage.getCurrentState()
 
-            val (locations, currentLocation) = if (savedState.locations.isNotEmpty()) {
-                Log.d(LOG_TRACE, "model: loaded locations ${savedState.locations.joinToString { it.uri.toString() }}")
-                Log.d(LOG_TRACE, "model: loaded current location ${savedState.currentLocation?.toString() ?: "null"}")
-                savedState.locations to savedState.currentLocation
+            val (dirs, currentDir) = if (savedState.saveDirs.isNotEmpty()) {
+                Log.d(LOG_TRACE, "model: loaded dirs ${savedState.saveDirs.joinToString { it.uri.toString() }}")
+                Log.d(LOG_TRACE, "model: loaded current dir ${savedState.currentDir?.toString() ?: "null"}")
+                savedState.saveDirs to savedState.currentDir
             } else {
-                locationProvider.getDefaultLocation()?.let { defaultLocation ->
-                    listOf(defaultLocation) to defaultLocation.uri
-                } ?: (emptyList<SaveLocation>() to null)
+                directoryProvider.defaultSaveDirectory()?.let { defaultDir ->
+                    listOf(defaultDir) to defaultDir.uri
+                } ?: (emptyList<SaveDir>() to null)
             }
 
             _state.update { it.copy(
-                locations = locations,
-                currentLocation = currentLocation
+                saveDirs = dirs,
+                currentDir = currentDir
             ) }
 
-            savedState.currentLocation?.let { uri ->
-                if (isValidLocation(uri)) {
-                    _effects.send(MainScreenEffect.CheckLocationAccess(uri))
+            savedState.currentDir?.let { uri ->
+                if (isValidDirectory(uri)) {
+                    _effects.send(MainScreenEffect.CheckDirectoryAccess(uri))
                 } else {
-                    removeSaveLocation(uri)
+                    removeDir(uri)
                 }
             }
         }
     }
 
-    private fun isValidLocation(uri: Uri): Boolean {
+    private fun isValidDirectory(uri: Uri): Boolean {
         return try {
             !uri.toString().isBlank() && !uri.scheme.isNullOrBlank()
         } catch (e: Exception) {
@@ -218,45 +219,45 @@ class MainScreenViewModel(
         }
     }
 
-    fun addSaveLocation(uri: Uri, name: String) {
+    fun addSaveDir(uri: Uri, name: String) {
         _state.update { state ->
-            val alreadyExists = state.locations.any { it.uri == uri }
+            val alreadyExists = state.saveDirs.any { it.uri == uri }
             if (alreadyExists) {
                 state // ignore
             } else {
                 state.copy(
-                    locations = state.locations + SaveLocation(name, uri),
-                    currentLocation = uri
+                    saveDirs = state.saveDirs + SaveDir(name, uri),
+                    currentDir = uri
                 )
             }
         }
 
         viewModelScope.launch {
             val currentState = _state.value
-            storage.updateLocations(currentState.locations)
-            storage.updateCurrentLocation(currentState.currentLocation)
+            storage.updateDirs(currentState.saveDirs)
+            storage.updateCurrentDir(currentState.currentDir)
         }
     }
 
-    fun removeSaveLocation(uri: Uri) {
+    fun removeDir(uri: Uri) {
         _state.update { state ->
-            val newLocations = state.locations.filter { it.uri != uri }
-            val newCurrentUri = if (state.currentLocation == uri) {
+            val newDirs = state.saveDirs.filter { it.uri != uri }
+            val newCurrentDir = if (state.currentDir == uri) {
                 null // Если удаляем текущую выбранную, сбрасываем выбор
             } else {
-                state.currentLocation
+                state.currentDir
             }
 
             state.copy(
-                locations = newLocations,
-                currentLocation = newCurrentUri
+                saveDirs = newDirs,
+                currentDir = newCurrentDir
             )
         }
 
         viewModelScope.launch {
             val currentState = _state.value
-            storage.updateLocations(currentState.locations)
-            storage.updateCurrentLocation(currentState.currentLocation)
+            storage.updateDirs(currentState.saveDirs)
+            storage.updateCurrentDir(currentState.currentDir)
         }
     }
 
@@ -275,11 +276,11 @@ class MainScreenViewModel(
         service?.onCommand(ServiceCommand.Stop)
     }
 
-    private fun setCurrentLocation(uri: Uri) {
-        _state.update { it.copy(currentLocation = uri) }
+    private fun setCurrentDir(uri: Uri) {
+        _state.update { it.copy(currentDir = uri) }
     }
 
-    private fun requestAddLocation() {
+    private fun requestAddDir() {
         viewModelScope.launch {
             _effects.send(MainScreenEffect.OpenFolderPicker)
         }

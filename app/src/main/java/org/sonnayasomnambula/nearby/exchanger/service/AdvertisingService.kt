@@ -144,4 +144,9 @@ class AdvertisingService : Service(), ExchangeService {
         super.onDestroy()
         Log.d(LOG_TRACE, "service: destroyed")
     }
+
+    private fun startAdvertising() {
+
+
+    }
 }

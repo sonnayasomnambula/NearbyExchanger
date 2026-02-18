@@ -5,12 +5,12 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 
-interface LocationProvider {
-    fun getDefaultLocation(): SaveLocation?
+interface DirectoryProvider {
+    fun defaultSaveDirectory(): SaveDir?
 }
 
-class AndroidLocationProvider : LocationProvider {
-    override fun getDefaultLocation(): SaveLocation? {
+class AndroidDirectoryProvider : DirectoryProvider {
+    override fun defaultSaveDirectory(): SaveDir? {
         val downloadsUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // Для Android 10+ используем MediaStore
             MediaStore.Downloads.EXTERNAL_CONTENT_URI
@@ -20,7 +20,7 @@ class AndroidLocationProvider : LocationProvider {
                 ?.let { Uri.fromFile(it) }
         }
         return downloadsUri?.let { uri ->
-            SaveLocation("Downloads", uri)
+            SaveDir("Downloads", uri)
         }
     }
 }

@@ -3,7 +3,6 @@ package org.sonnayasomnambula.nearby.exchanger
 import MainScreen
 import android.Manifest
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
@@ -55,7 +54,7 @@ class MainActivity : ComponentActivity() {
                             Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
 
-                viewModel.addSaveLocation(
+                viewModel.addSaveDir(
                     uri = uri,
                     name = uri.lastPathSegment ?: "Folder"
                 )
@@ -124,8 +123,8 @@ class MainActivity : ComponentActivity() {
                             ).show()
                         }
 
-                        is MainScreenEffect.CheckLocationAccess -> {
-                            checkLocationAccess(effect.uri)
+                        is MainScreenEffect.CheckDirectoryAccess -> {
+                            checkDirectoryAccess(effect.uri)
                         }
 
                         is MainScreenEffect.StartForegroundService -> {
@@ -174,7 +173,7 @@ class MainActivity : ComponentActivity() {
         Log.d(LOG_TRACE, "activity: destroyed")
     }
 
-    private fun checkLocationAccess(uri: Uri) {
+    private fun checkDirectoryAccess(uri: Uri) {
         val hasAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // Для Android 10+ (API 29+) используем persistedUriPermissions
             contentResolver.persistedUriPermissions.any {
@@ -201,6 +200,6 @@ class MainActivity : ComponentActivity() {
             writePermission && readPermission
         }
 
-        viewModel.onEvent(MainScreenEvent.LocationAccessChecked(uri, hasAccess))
+        viewModel.onEvent(MainScreenEvent.DirectoryAccessChecked(uri, hasAccess))
     }
 }
