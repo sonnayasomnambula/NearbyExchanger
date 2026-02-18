@@ -1,4 +1,4 @@
-package org.sonnayasomnambula.nearby.exchanger
+package org.sonnayasomnambula.nearby.exchanger.app
 
 import android.content.Context
 import android.net.Uri
@@ -9,9 +9,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
+import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.model.SaveLocation
 import java.io.IOException
 
 interface Storage {
@@ -152,7 +155,7 @@ class DataStoreStorage(private val context: Context) : Storage {
 }
 
 // DTO для сериализации SaveLocation (Uri не сериализуется напрямую)
-@kotlinx.serialization.Serializable
+@Serializable
 private data class SaveLocationDto(
     val name: String,
     val uriString: String

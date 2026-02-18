@@ -1,7 +1,8 @@
-package org.sonnayasomnambula.nearby.exchanger
+package org.sonnayasomnambula.nearby.exchanger.model
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import org.sonnayasomnambula.nearby.exchanger.app.MyApplication
 
 @Suppress("UNCHECKED_CAST")
 class MainScreenViewModelFactory(

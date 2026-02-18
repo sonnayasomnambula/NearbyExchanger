@@ -16,11 +16,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import org.sonnayasomnambula.nearby.exchanger.ConnectionState
-import org.sonnayasomnambula.nearby.exchanger.MainScreenEvent
-import org.sonnayasomnambula.nearby.exchanger.MainScreenState
+import org.sonnayasomnambula.nearby.exchanger.model.ConnectionState
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
-import org.sonnayasomnambula.nearby.exchanger.Role
+import org.sonnayasomnambula.nearby.exchanger.model.Role
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

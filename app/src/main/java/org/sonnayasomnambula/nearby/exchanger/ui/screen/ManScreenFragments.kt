@@ -41,12 +41,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.sonnayasomnambula.nearby.exchanger.ConnectionState
-import org.sonnayasomnambula.nearby.exchanger.MainScreenEvent
-import org.sonnayasomnambula.nearby.exchanger.MainScreenState
+import org.sonnayasomnambula.nearby.exchanger.model.ConnectionState
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
-import org.sonnayasomnambula.nearby.exchanger.Role
-import org.sonnayasomnambula.nearby.exchanger.SaveLocation
+import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.model.SaveLocation
 
 @Composable
 fun ConnectionState.getDisplayText(): String {

@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
-        android:name=".MyApplication"
+        android:name=".app.MyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -31,7 +31,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".AdvertisingService"
+            android:name=".service.AdvertisingService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

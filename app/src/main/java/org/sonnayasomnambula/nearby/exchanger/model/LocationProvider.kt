@@ -1,4 +1,4 @@
-package org.sonnayasomnambula.nearby.exchanger
+package org.sonnayasomnambula.nearby.exchanger.model
 
 import android.net.Uri
 import android.os.Build

@@ -1,10 +1,7 @@
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.res.stringResource
-import org.sonnayasomnambula.nearby.exchanger.ConnectionState
-import org.sonnayasomnambula.nearby.exchanger.MainScreenViewModel
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 
-import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.ui.screen.MainScreenLandscape
 import org.sonnayasomnambula.nearby.exchanger.ui.screen.MainScreenPortrait
 

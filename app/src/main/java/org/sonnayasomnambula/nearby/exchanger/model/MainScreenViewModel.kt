@@ -1,15 +1,26 @@
-package org.sonnayasomnambula.nearby.exchanger
+package org.sonnayasomnambula.nearby.exchanger.model
 
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.sonnayasomnambula.nearby.exchanger.service.RemoteDevice
+import org.sonnayasomnambula.nearby.exchanger.app.Storage
+import org.sonnayasomnambula.nearby.exchanger.service.AdvertisingService
+import org.sonnayasomnambula.nearby.exchanger.service.ExchangeService
+import org.sonnayasomnambula.nearby.exchanger.service.ServiceCommand
+import org.sonnayasomnambula.nearby.exchanger.service.ServiceEvent
+import org.sonnayasomnambula.nearby.exchanger.service.ServiceState
 
 enum class Role { ADVERTISER, DISCOVERER }
 
@@ -19,37 +30,6 @@ data class SaveLocation(
     val name: String,
     val uri: Uri,
 )
-
-data class RemoteDevice(
-    /// Уникальный идентификатор конечной точки, предоставляемый Nearby API
-    val endpointId: String,
-    /// [DiscoveredEndpointInfo.endpointName] или [ConnectionInfo.endpointName]
-    val name: String,
-    /// Токен аутентификации (обычно 4-5 цифр), который нужно показать пользователю
-    val authenticationToken: String? = null,
-    /// Текущая стадия обмена с удалённым устройством
-    val connectionState: ConnectionState = ConnectionState.DISCONNECTED
-) {
-    enum class ConnectionState {
-        DISCONNECTED,
-        DISCOVERED,
-        CONNECTING,
-        AWAITING_CONFIRM,
-        CONNECTED,
-    }
-
-    fun update(
-        name: String? = null,
-        authenticationToken: String? = null,
-        connectionState: ConnectionState? = null
-    ): RemoteDevice {
-        return this.copy(
-            name = name ?: this.name,
-            authenticationToken = authenticationToken ?: this.authenticationToken,
-            connectionState = connectionState ?: this.connectionState,
-        )
-    }
-}
 
 data class MainScreenState (
     val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
@@ -66,7 +46,6 @@ sealed interface MainScreenEffect {
     data class ShowMessage(val text: String) : MainScreenEffect
     data class CheckLocationAccess(val uri: Uri) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
-    data object StopForegroundService : MainScreenEffect
 }
 
 // activity/composable => model
@@ -133,6 +112,49 @@ class MainScreenViewModel(
                     connectionState = ConnectionState.DISCONNECTED,
                     currentRole = null
                 )
+            }
+        }
+    }
+
+    private var service: ExchangeService? = null
+
+    // Состояние сервиса для UI
+    private val _serviceState = MutableStateFlow<ServiceState>(ServiceState.Initial)
+    val serviceState: StateFlow<ServiceState> = _serviceState.asStateFlow()
+
+    // Обработка событий сервиса
+    private val _serviceEvents = MutableSharedFlow<ServiceEvent>()
+    val serviceEvents: SharedFlow<ServiceEvent> = _serviceEvents.asSharedFlow()
+
+    fun subscribeToService(service: ExchangeService) {
+        this.service = service
+
+        viewModelScope.launch {
+            service.state.collect { state ->
+                _serviceState.value = state
+
+                // Можем также отправлять эффекты для UI при необходимости
+                when (state) {
+                    is ServiceState.Running -> {
+                    }
+                    ServiceState.Stopped -> {
+                    }
+                    ServiceState.Initial -> {
+                    }
+                }
+            }
+        }
+
+        // Подписываемся на события
+        viewModelScope.launch {
+            service.events.collect { event ->
+                _serviceEvents.emit(event)
+//                when (event) {
+//                    ServiceEvent.Stopped -> {
+//                        _role.value = null
+//                        _effects.emit(MainScreenEffect.ServiceStopped)
+//                    }
+//                }
             }
         }
     }
@@ -250,9 +272,7 @@ class MainScreenViewModel(
     }
 
     private fun onDisconnectClicked() {
-        viewModelScope.launch {
-            _effects.send(MainScreenEffect.StopForegroundService)
-        }
+        service?.onCommand(ServiceCommand.Stop)
     }
 
     private fun setCurrentLocation(uri: Uri) {

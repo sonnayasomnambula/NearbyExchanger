@@ -26,6 +26,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
+import org.sonnayasomnambula.nearby.exchanger.app.MyApplication
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModelFactory
+import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.service.AdvertisingService
+import org.sonnayasomnambula.nearby.exchanger.service.ExchangeService
 
 
 import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
@@ -33,8 +41,6 @@ import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
 class MainActivity : ComponentActivity() {
     private val LOG_TAG = "org.sonnayasomnambula.nearby.exchanger.MainActivity"
     private val LOG_TRACE = "org.sonnayasomnambula.trace"
-
-    private var serviceConnection: ServiceConnection? = null
 
     private val viewModel: MainScreenViewModel by viewModels() {
         MainScreenViewModelFactory(application as MyApplication)
@@ -73,28 +79,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            Log.d(LOG_TRACE, "activity: service connected")
+            val binder = service as? AdvertisingService.LocalBinder
+            val advertisingService = binder?.getService()
+            viewModel.subscribeToService(advertisingService as ExchangeService)
+            viewModel.onEvent(MainScreenEvent.ServiceStarted(Role.ADVERTISER))
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            Log.d(LOG_TRACE, "activity: service disconnected")
+            viewModel.onEvent(MainScreenEvent.ServiceStopped)
+
+            bindToService()
+        }
+    }
+
     private fun bindToService() {
-        serviceConnection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                Log.d(LOG_TRACE, "activity: service connected")
-                val binder = service as? AdvertisingService.LocalBinder
-                val advertisingService = binder?.getService()
-                viewModel.onEvent(MainScreenEvent.ServiceStarted(Role.ADVERTISER))
-            }
-
-            override fun onServiceDisconnected(name: ComponentName?) {
-                Log.d(LOG_TRACE, "activity: service disconnected")
-                viewModel.onEvent(MainScreenEvent.ServiceStopped)
-                serviceConnection = null
-            }
-        }
-
-        serviceConnection?.let { connection ->
-            val intent = Intent(this, AdvertisingService::class.java)
-            bindService(intent, connection, Context.BIND_AUTO_CREATE)
-        } ?: {
-            Log.e(LOG_TAG, "Unable to bind service: connection is null")
-        }
+        val intent = Intent(this, AdvertisingService::class.java)
+        bindService(intent, serviceConnection, 0)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -102,9 +106,6 @@ class MainActivity : ComponentActivity() {
         Log.d(LOG_TRACE, "activity: created")
 
         super.onCreate(savedInstanceState)
-
-        if (viewModel.state.value.currentRole != null)
-            bindToService()
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -135,13 +136,6 @@ class MainActivity : ComponentActivity() {
                                 requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                             }
                         }
-                        is MainScreenEffect.StopForegroundService -> {
-                            AdvertisingService.stop(this@MainActivity)
-                            serviceConnection?.let {
-                                unbindService(it)
-                                serviceConnection = null
-                            }
-                        }
                     }
                 }
             }
@@ -165,11 +159,17 @@ class MainActivity : ComponentActivity() {
         viewModel.onEvent(MainScreenEvent.ActivityStarted)
     }
 
+    override fun onStart() {
+        super.onStart()
+        bindToService()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        unbindService(serviceConnection)
+    }
+
     override fun onDestroy() {
-        serviceConnection?.let {
-            unbindService(it)
-            serviceConnection = null
-        }
         super.onDestroy()
         Log.d(LOG_TRACE, "activity: destroyed")
     }
