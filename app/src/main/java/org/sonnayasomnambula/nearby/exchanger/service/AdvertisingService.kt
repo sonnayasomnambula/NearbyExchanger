@@ -43,10 +43,12 @@ class AdvertisingService : Service(), ExchangeService {
         const val ACTION_SERVICE_STARTED = "ACTION_SERVICE_STARTED"
         const val ACTION_SERVICE_STOPPED = "ACTION_SERVICE_STOPPED"
 
-        @RequiresApi(Build.VERSION_CODES.O)
         fun start(context: Context) {
             val intent = Intent(context, AdvertisingService::class.java)
-            context.startForegroundService(intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                context.startForegroundService(intent)
+            else
+                context.startService(intent)
         }
     }
 
@@ -108,15 +110,20 @@ class AdvertisingService : Service(), ExchangeService {
     }
 
     private fun startFore() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                createNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, createNotification())
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification())
+            }
+        } /*else { // TODO
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(ONGOING_NOTIFICATION_ID, notification)
+        }*/
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -136,6 +143,9 @@ class AdvertisingService : Service(), ExchangeService {
             is ServiceCommand.Stop ->  {
                 stopSelf()
             }
+            is ServiceCommand.StartSearching -> {
+                startAdvertising()
+            }
         }
     }
 
@@ -146,7 +156,6 @@ class AdvertisingService : Service(), ExchangeService {
     }
 
     private fun startAdvertising() {
-
 
     }
 }

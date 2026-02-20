@@ -48,6 +48,7 @@ sealed class ServiceEvent {
 
 sealed class ServiceCommand {
     object Stop : ServiceCommand()
+    object StartSearching : ServiceCommand()
 }
 
 interface ExchangeService {

@@ -61,15 +61,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        Log.d(LOG_TRACE, if (isGranted) "permission granted" else "permission not granted")
-        if (isGranted) {
-            AdvertisingService.start(this@MainActivity)
-            bindToService()
-        } else {
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions /* :Map<String, Boolean> */ ->
+        val allGranted = permissions.values.all { it }
+
+        Log.d(LOG_TRACE, "Permissions result: $permissions")
+        viewModel.onEvent(MainScreenEvent.PermissionsResult(allGranted))
+
+        if (!allGranted) {
             Toast.makeText(
                 this@MainActivity,
                 getString(R.string.operation_not_allowed),
@@ -127,13 +127,12 @@ class MainActivity : ComponentActivity() {
                             checkDirectoryAccess(effect.uri)
                         }
 
+                        is MainScreenEffect.RequestPermissions -> {
+                            checkPermissions(effect.permissions)
+                        }
+
                         is MainScreenEffect.StartForegroundService -> {
-                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                                AdvertisingService.start(this@MainActivity)
-                                bindToService()
-                            } else {
-                                requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                            }
+                            AdvertisingService.start(this@MainActivity)
                         }
                     }
                 }
@@ -201,5 +200,14 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.onEvent(MainScreenEvent.DirectoryAccessChecked(uri, hasAccess))
+    }
+
+    private fun checkPermissions(permissions: List<String>) {
+        Log.d(LOG_TRACE, "check $permissions")
+        if (permissions.isEmpty()) {
+            viewModel.onEvent(MainScreenEvent.PermissionsResult(true))
+        } else {
+            requestPermissionLauncher.launch(permissions.toTypedArray())
+        }
     }
 }

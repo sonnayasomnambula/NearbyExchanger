@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.service.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.app.Storage
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect.*
 import org.sonnayasomnambula.nearby.exchanger.service.ExchangeService
 import org.sonnayasomnambula.nearby.exchanger.service.ServiceCommand
 import org.sonnayasomnambula.nearby.exchanger.service.ServiceEvent
@@ -39,31 +40,98 @@ data class MainScreenState (
     val availableDevices: List<RemoteDevice> = emptyList(),
 )
 
+// activity/composable => model
+sealed interface MainScreenEvent {
+    data object ActivityStarted: MainScreenEvent
+    data object AddDirectoryRequested : MainScreenEvent
+    data class RemoveDirectoryRequested(val uri: Uri) : MainScreenEvent
+    data class DirectorySelected(val uri: Uri) : MainScreenEvent
+    data class RoleSelected(val role: Role) : MainScreenEvent
+    data object DisconnectClicked : MainScreenEvent
+    data object SendClicked : MainScreenEvent
+    data class ServiceStarted(val role: Role): MainScreenEvent
+    data object ServiceStopped: MainScreenEvent
+    data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
+    data class PermissionsResult(val granted: Boolean) : MainScreenEvent
+}
+
 // model => activity
 sealed interface MainScreenEffect {
     data object OpenFolderPicker : MainScreenEffect
     data class ShowMessage(val text: String) : MainScreenEffect
     data class CheckDirectoryAccess(val uri: Uri) : MainScreenEffect
+    data class RequestPermissions(val permissions: List<String>) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
 }
 
-// activity/composable => model
-sealed interface MainScreenEvent {
-    data class RoleSelected(val role: Role) : MainScreenEvent
-    data object AddDirectoryRequested : MainScreenEvent
-    data class RemoveDirectoryRequested(val uri: Uri) : MainScreenEvent
-    data class DirectorySelected(val uri: Uri) : MainScreenEvent
-    data object SendClicked : MainScreenEvent
-    data object DisconnectClicked : MainScreenEvent
-    data object ActivityStarted: MainScreenEvent
-    data class ServiceStarted(val role: Role): MainScreenEvent
-    data object ServiceStopped: MainScreenEvent
-    data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
-}
-
+/**
+ * Central model class responsible for application logic and UI state management.
+ *
+ * The Model (implemented as a ViewModel) acts as the single source of truth,
+ * coordinating communication between the UI layer (Activity/Composable) and background
+ * services via a unidirectional data flow pattern following MVI (Model-View-Intent)
+ * architecture. It receives UI events from composables, updates its internal state
+ * via MutableStateFlow, and emits one-time side effects through a Channel for the
+ * Activity to execute (permissions, folder picker, etc). The Model also
+ * sends commands to the bound service for direct control.
+ *
+ * All state updates trigger UI recomposition automatically through the integration of
+ * Kotlin Flow and Jetpack Compose. The Model exposes state as a StateFlow, and the UI
+ * collects it via `collectAsState()` in the ViewModel. Whenever a new value is emitted
+ * to `_state`, the StateFlow updates its value, causing `collectAsState()` to emit a new
+ * value and trigger recomposition of only the composables that read this state.
+ *
+ * Some implemented scenarios:
+ *
+ * <h3>Application Start</h3>
+ * <pre>
+ * // UI sends ActivityStarted event when app launches
+ * MainScreenEvent.ActivityStarted
+ *     ↓
+ * [Model loads saved state (list of folders for data storage)]
+ * [Model requests the activity to check permissions for the current folder]
+ *     ↓
+ * MainScreenEffect.CheckDirectoryAccess(currentDir.uri)
+ *     ↓
+ * // UI checks access and responds with result
+ * MainScreenEvent.DirectoryAccessChecked(uri, hasAccess)
+ *     ↓
+ * [If access denied, Model removes current directory and requests folder picker]
+ *     ↓
+ * MainScreenEffect.OpenFolderPicker
+ * </pre>
+ *
+ *
+ * <h3>Service Launch Flow</h3>
+ * <pre>
+ * // User selects role (Advertiser/Discoverer)
+ * MainScreenEvent.RoleSelected(role)
+ *     ↓
+ * [Model determines required permissions for the role]
+ *     ↓
+ * MainScreenEffect.RequestPermissions(permissionsList)
+ *     ↓
+ * // User grants/denies permissions
+ * MainScreenEvent.PermissionsResult(granted)
+ *     ↓
+ * [If granted, Model proceeds with service start]
+ *     ↓
+ * MainScreenEffect.StartForegroundService(role)
+ *     ↓
+ * // Service starts and binds; UI notifies Model
+ * MainScreenEvent.ServiceStarted(role)
+ *     ↓
+ * [Model stores service reference for communication]
+ * [Model updates UI state based on service role]
+ * [Model commands service to begin operation]
+ *     ↓
+ * ServiceCommand.StartSearching
+ * </pre>
+ */
 class MainScreenViewModel(
     private val storage: Storage,
-    private val directoryProvider: DirectoryProvider
+    private val directoryProvider: DirectoryProvider,
+    private val permissionPolicy: PermissionPolicy
 ) : ViewModel() {
 
     private val LOG_TRACE = "org.sonnayasomnambula.trace"
@@ -73,6 +141,13 @@ class MainScreenViewModel(
 
     private val _effects = Channel<MainScreenEffect>(Channel.BUFFERED)
     val effects = _effects.receiveAsFlow()
+
+    private sealed interface PendingAction {
+        data class StartService(val role: Role) : PendingAction
+        data class StartSearching(val role: Role) : PendingAction
+    }
+
+    private var pendingAction: PendingAction? = null
 
     fun onEvent(event: MainScreenEvent) {
         Log.d(LOG_TRACE, "model: ${event.toString()}")
@@ -87,6 +162,24 @@ class MainScreenViewModel(
             is MainScreenEvent.SendClicked -> onSendClicked()
             is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
             is MainScreenEvent.DirectoryAccessChecked -> onDirectoryAccessChecked(event.uri, event.hasAccess)
+            is MainScreenEvent.PermissionsResult -> onPermissionResult(granted = event.granted)
+        }
+    }
+
+    private fun onPermissionResult(granted: Boolean) {
+        if (granted) {
+            viewModelScope.launch {
+                val action = requireNotNull(pendingAction)
+                pendingAction = null
+                when (action) {
+                    is PendingAction.StartService -> {
+                        _effects.send(MainScreenEffect.StartForegroundService(action.role))
+                    }
+                    is PendingAction.StartSearching -> {
+                        service?.onCommand(ServiceCommand.StartSearching)
+                    }
+                }
+            }
         }
     }
 
@@ -101,8 +194,10 @@ class MainScreenViewModel(
                     }
                 )
             }
-            _effects.send(MainScreenEffect.)
 
+            pendingAction = PendingAction.StartSearching(role)
+            val permissions = permissionPolicy.permissionsFor(role)
+            _effects.send(MainScreenEffect.RequestPermissions(permissions))
         }
     }
 
@@ -288,7 +383,9 @@ class MainScreenViewModel(
 
     private fun onRoleSelected(role: Role) {
         viewModelScope.launch {
-            _effects.send(MainScreenEffect.StartForegroundService(role))
+            pendingAction = PendingAction.StartService(role)
+            val permissions = permissionPolicy.permissionsForServiceStart()
+            _effects.send(MainScreenEffect.RequestPermissions(permissions))
         }
     }
 }
