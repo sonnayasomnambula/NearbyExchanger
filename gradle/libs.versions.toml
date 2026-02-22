@@ -15,6 +15,7 @@ serialization = "1.6.2"
 coroutines = "1.7.3"
 documentfile = "1.1.0"
 localbroadcastmanager = "1.1.0"
+playServicesNearby = "19.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -45,6 +46,7 @@ androidx-documentfile = { group = "androidx.documentfile", name = "documentfile"
 
 # localbroadcastmanager
 androidx-localbroadcastmanager = { group = "androidx.localbroadcastmanager", name = "localbroadcastmanager", version.ref = "localbroadcastmanager" }
+play-services-nearby = { group = "com.google.android.gms", name = "play-services-nearby", version.ref = "playServicesNearby" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

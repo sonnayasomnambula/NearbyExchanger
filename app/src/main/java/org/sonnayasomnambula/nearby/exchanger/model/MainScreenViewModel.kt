@@ -14,17 +14,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.sonnayasomnambula.nearby.exchanger.service.RemoteDevice
+import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
+import org.sonnayasomnambula.nearby.exchanger.__func__
 import org.sonnayasomnambula.nearby.exchanger.app.Storage
-import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect.*
-import org.sonnayasomnambula.nearby.exchanger.service.ExchangeService
-import org.sonnayasomnambula.nearby.exchanger.service.ServiceCommand
-import org.sonnayasomnambula.nearby.exchanger.service.ServiceEvent
-import org.sonnayasomnambula.nearby.exchanger.service.ServiceState
+import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
+import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeEvent
+import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeState
 
 enum class Role { ADVERTISER, DISCOVERER }
 
-enum class ConnectionState { DISCONNECTED, ADVERTISING, DISCOVERING, CONNECTED }
+enum class ConnectionState { DISCONNECTED, ADVERTISING, DISCOVERING, CONNECTED, ERROR }
 
 data class SaveDir(
     val name: String,
@@ -62,6 +61,7 @@ sealed interface MainScreenEffect {
     data class CheckDirectoryAccess(val uri: Uri) : MainScreenEffect
     data class RequestPermissions(val permissions: List<String>) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
+    data object StopForegroundService : MainScreenEffect
 }
 
 /**
@@ -134,22 +134,27 @@ class MainScreenViewModel(
     private val permissionPolicy: PermissionPolicy
 ) : ViewModel() {
 
-    private val LOG_TRACE = "org.sonnayasomnambula.trace"
+    private val _screenState = MutableStateFlow(MainScreenState())
+    val screenState: StateFlow<MainScreenState> = _screenState
 
-    private val _state = MutableStateFlow(MainScreenState())
-    val state: StateFlow<MainScreenState> = _state
+    private val _activityEffects = Channel<MainScreenEffect>(Channel.BUFFERED)
+    val activityEffects = _activityEffects.receiveAsFlow()
 
-    private val _effects = Channel<MainScreenEffect>(Channel.BUFFERED)
-    val effects = _effects.receiveAsFlow()
+    private var exchanger: Exchanger? = null
+
+    private val _exchangerState = MutableStateFlow<ExchangeState>(ExchangeState.Initial)
+    val exchangerState: StateFlow<ExchangeState> = _exchangerState.asStateFlow()
+
+    private val _exchangerEvents = MutableSharedFlow<ExchangeEvent>()
+    val exchangerEvents: SharedFlow<ExchangeEvent> = _exchangerEvents.asSharedFlow()
 
     private sealed interface PendingAction {
         data class StartService(val role: Role) : PendingAction
-        data class StartSearching(val role: Role) : PendingAction
     }
 
     private var pendingAction: PendingAction? = null
 
-    fun onEvent(event: MainScreenEvent) {
+    fun onScreenEvent(event: MainScreenEvent) {
         Log.d(LOG_TRACE, "model: ${event.toString()}")
         when (event) {
             is MainScreenEvent.ActivityStarted -> onActivityStarted()
@@ -173,10 +178,7 @@ class MainScreenViewModel(
                 pendingAction = null
                 when (action) {
                     is PendingAction.StartService -> {
-                        _effects.send(MainScreenEffect.StartForegroundService(action.role))
-                    }
-                    is PendingAction.StartSearching -> {
-                        service?.onCommand(ServiceCommand.StartSearching)
+                        _activityEffects.send(MainScreenEffect.StartForegroundService(action.role))
                     }
                 }
             }
@@ -185,7 +187,7 @@ class MainScreenViewModel(
 
     private fun onServiceStarted(role: Role) {
         viewModelScope.launch {
-            _state.update { currentState ->
+            _screenState.update { currentState ->
                 currentState.copy(
                     currentRole = role,
                     connectionState = when (role) {
@@ -194,63 +196,52 @@ class MainScreenViewModel(
                     }
                 )
             }
-
-            pendingAction = PendingAction.StartSearching(role)
-            val permissions = permissionPolicy.permissionsFor(role)
-            _effects.send(MainScreenEffect.RequestPermissions(permissions))
         }
     }
 
     private fun onServiceStopped() {
         viewModelScope.launch {
-            _state.update { currentState ->
+            _screenState.update { currentState ->
                 currentState.copy(
                     connectionState = ConnectionState.DISCONNECTED,
-                    currentRole = null
+                    currentRole = null,
+                    statusText = ""
                 )
             }
         }
     }
 
-    private var service: ExchangeService? = null
-
-    // Состояние сервиса для UI
-    private val _serviceState = MutableStateFlow<ServiceState>(ServiceState.Initial)
-    val serviceState: StateFlow<ServiceState> = _serviceState.asStateFlow()
-
-    // Обработка событий сервиса
-    private val _serviceEvents = MutableSharedFlow<ServiceEvent>()
-    val serviceEvents: SharedFlow<ServiceEvent> = _serviceEvents.asSharedFlow()
-
-    fun subscribeToService(service: ExchangeService) {
-        this.service = service
+    fun subscribeToExchanger(exchanger: Exchanger) {
+        Log.d(LOG_TRACE, __func__())
+        this.exchanger = exchanger
 
         viewModelScope.launch {
-            service.state.collect { state ->
-                _serviceState.value = state
+            exchanger.state.collect { state ->
+                _exchangerState.value = state
 
-                // Можем также отправлять эффекты для UI при необходимости
                 when (state) {
-                    is ServiceState.Running -> {
+                    ExchangeState.Stopped -> {
                     }
-                    ServiceState.Stopped -> {
+                    ExchangeState.Initial -> {
                     }
-                    ServiceState.Initial -> {
+                    is ExchangeState.Running -> {
+                    }
+                    is ExchangeState.Failed -> {
+                        Log.e(LOG_TRACE, "model: ExchangeState.Failed")
+                        _screenState.update { currentState ->
+                            currentState.copy(
+                                connectionState = ConnectionState.ERROR,
+                                statusText = state.message
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Подписываемся на события
         viewModelScope.launch {
-            service.events.collect { event ->
-                _serviceEvents.emit(event)
-//                when (event) {
-//                    ServiceEvent.Stopped -> {
-//                        _role.value = null
-//                        _effects.emit(MainScreenEffect.ServiceStopped)
-//                    }
-//                }
+            exchanger.events.collect { event ->
+                _exchangerEvents.emit(event)
             }
         }
     }
@@ -258,21 +249,21 @@ class MainScreenViewModel(
     private fun onDirectoryAccessChecked(uri: Uri, hasAccess: Boolean) {
         if (!hasAccess) {
             viewModelScope.launch {
-                val curState = _state.value
+                val curState = _screenState.value
                 val updatedDirs = curState.saveDirs.filterNot { it.toString() == uri.toString() }
                 val updatedCurrentDir = if (curState.currentDir?.toString() == uri.toString()) null else curState.currentDir
 
                 storage.updateDirs(updatedDirs)
                 storage.updateCurrentDir(updatedCurrentDir)
 
-                _state.update { currentState ->
+                _screenState.update { currentState ->
                     currentState.copy(
                         saveDirs = updatedDirs,
                         currentDir = updatedCurrentDir,
                     )
                 }
 
-                _effects.send(MainScreenEffect.OpenFolderPicker)
+                _activityEffects.send(MainScreenEffect.OpenFolderPicker)
             }
         }
     }
@@ -291,14 +282,14 @@ class MainScreenViewModel(
                 } ?: (emptyList<SaveDir>() to null)
             }
 
-            _state.update { it.copy(
+            _screenState.update { it.copy(
                 saveDirs = dirs,
                 currentDir = currentDir
             ) }
 
             savedState.currentDir?.let { uri ->
                 if (isValidDirectory(uri)) {
-                    _effects.send(MainScreenEffect.CheckDirectoryAccess(uri))
+                    _activityEffects.send(MainScreenEffect.CheckDirectoryAccess(uri))
                 } else {
                     removeDir(uri)
                 }
@@ -315,7 +306,7 @@ class MainScreenViewModel(
     }
 
     fun addSaveDir(uri: Uri, name: String) {
-        _state.update { state ->
+        _screenState.update { state ->
             val alreadyExists = state.saveDirs.any { it.uri == uri }
             if (alreadyExists) {
                 state // ignore
@@ -328,14 +319,14 @@ class MainScreenViewModel(
         }
 
         viewModelScope.launch {
-            val currentState = _state.value
+            val currentState = _screenState.value
             storage.updateDirs(currentState.saveDirs)
             storage.updateCurrentDir(currentState.currentDir)
         }
     }
 
     fun removeDir(uri: Uri) {
-        _state.update { state ->
+        _screenState.update { state ->
             val newDirs = state.saveDirs.filter { it.uri != uri }
             val newCurrentDir = if (state.currentDir == uri) {
                 null // Если удаляем текущую выбранную, сбрасываем выбор
@@ -350,42 +341,44 @@ class MainScreenViewModel(
         }
 
         viewModelScope.launch {
-            val currentState = _state.value
+            val currentState = _screenState.value
             storage.updateDirs(currentState.saveDirs)
             storage.updateCurrentDir(currentState.currentDir)
         }
     }
 
     private fun onSendClicked() {
-        val state = _state.value
+        val state = _screenState.value
 
         if (state.currentRole == null) {
             viewModelScope.launch {
-                _effects.send(MainScreenEffect.ShowMessage("Выберите роль"))
+                _activityEffects.send(MainScreenEffect.ShowMessage("Выберите роль"))
             }
             return
         }
     }
 
     private fun onDisconnectClicked() {
-        service?.onCommand(ServiceCommand.Stop)
+        viewModelScope.launch {
+            _activityEffects.send(MainScreenEffect.StopForegroundService)
+        }
     }
 
     private fun setCurrentDir(uri: Uri) {
-        _state.update { it.copy(currentDir = uri) }
+        _screenState.update { it.copy(currentDir = uri) }
     }
 
     private fun requestAddDir() {
         viewModelScope.launch {
-            _effects.send(MainScreenEffect.OpenFolderPicker)
+            _activityEffects.send(MainScreenEffect.OpenFolderPicker)
         }
     }
 
     private fun onRoleSelected(role: Role) {
         viewModelScope.launch {
             pendingAction = PendingAction.StartService(role)
-            val permissions = permissionPolicy.permissionsForServiceStart()
-            _effects.send(MainScreenEffect.RequestPermissions(permissions))
+            val permissions = permissionPolicy.permissionsFor(role)
+            _activityEffects.send(MainScreenEffect.RequestPermissions(permissions))
         }
     }
 }

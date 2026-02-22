@@ -1,8 +1,4 @@
-package org.sonnayasomnambula.nearby.exchanger.service
-
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import org.sonnayasomnambula.nearby.exchanger.model.Role
+package org.sonnayasomnambula.nearby.exchanger.model
 
 data class RemoteDevice(
     /// Уникальный идентификатор конечной точки, предоставляемый Nearby API
@@ -33,27 +29,4 @@ data class RemoteDevice(
             connectionState = connectionState ?: this.connectionState,
         )
     }
-}
-
-sealed class ServiceState {
-    object Initial : ServiceState()
-    object Stopped : ServiceState()
-    data class Running(
-        val availableDevices: List<RemoteDevice> = emptyList()
-    ) : ServiceState()
-}
-
-sealed class ServiceEvent {
-}
-
-sealed class ServiceCommand {
-    object Stop : ServiceCommand()
-    object StartSearching : ServiceCommand()
-}
-
-interface ExchangeService {
-    val state: StateFlow<ServiceState>
-    val events: SharedFlow<ServiceEvent>
-    fun onCommand(command: ServiceCommand)
-    fun role() : Role
 }

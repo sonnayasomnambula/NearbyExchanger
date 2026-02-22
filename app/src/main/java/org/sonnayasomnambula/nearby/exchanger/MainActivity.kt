@@ -31,15 +31,24 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModelFactory
 import org.sonnayasomnambula.nearby.exchanger.model.Role
-import org.sonnayasomnambula.nearby.exchanger.service.AdvertisingService
-import org.sonnayasomnambula.nearby.exchanger.service.ExchangeService
+import org.sonnayasomnambula.nearby.exchanger.nearby.NearbyExchanger
+import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
 
 
 import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
 
+val LOG_TRACE = "org.sonnayasomnambula.trace"
+
+fun __func__(): String {
+    val element = Thread.currentThread().stackTrace[3]
+    val className = element.className.substringAfterLast('.')
+    val methodName = element.methodName
+    val lineNumber = element.lineNumber
+    return className + "." + methodName + " : " + lineNumber.toString()
+}
+
 class MainActivity : ComponentActivity() {
     private val LOG_TAG = "org.sonnayasomnambula.nearby.exchanger.MainActivity"
-    private val LOG_TRACE = "org.sonnayasomnambula.trace"
 
     private val viewModel: MainScreenViewModel by viewModels() {
         MainScreenViewModelFactory(application as MyApplication)
@@ -67,7 +76,7 @@ class MainActivity : ComponentActivity() {
         val allGranted = permissions.values.all { it }
 
         Log.d(LOG_TRACE, "Permissions result: $permissions")
-        viewModel.onEvent(MainScreenEvent.PermissionsResult(allGranted))
+        viewModel.onScreenEvent(MainScreenEvent.PermissionsResult(allGranted))
 
         if (!allGranted) {
             Toast.makeText(
@@ -81,23 +90,28 @@ class MainActivity : ComponentActivity() {
     private var serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             Log.d(LOG_TRACE, "activity: service connected")
-            val binder = service as? AdvertisingService.LocalBinder
-            val advertisingService = binder?.getService()
-            viewModel.subscribeToService(advertisingService as ExchangeService)
-            viewModel.onEvent(MainScreenEvent.ServiceStarted(Role.ADVERTISER))
+            val binder = service as? ExchangeService.LocalBinder
+            binder?.setOnExchangerReadyListener { exchanger ->
+                runOnUiThread {
+                    viewModel.subscribeToExchanger(exchanger)
+                    viewModel.onScreenEvent(MainScreenEvent.ServiceStarted(exchanger.role()))
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             Log.d(LOG_TRACE, "activity: service disconnected")
-            viewModel.onEvent(MainScreenEvent.ServiceStopped)
+            viewModel.onScreenEvent(MainScreenEvent.ServiceStopped)
 
             bindToService()
         }
     }
 
     private fun bindToService() {
-        val intent = Intent(this, AdvertisingService::class.java)
-        bindService(intent, serviceConnection, 0)
+        val intent = Intent(this, ExchangeService::class.java)
+        if (!bindService(intent, serviceConnection, 0)) {
+            Log.e(LOG_TRACE, "Unable to bind service ${intent.component?.className}")
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -108,7 +122,7 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.effects.collect { effect ->
+                viewModel.activityEffects.collect { effect ->
                     Log.d(LOG_TRACE, "activity: effect ${effect.toString()}")
                     when (effect) {
                         is MainScreenEffect.OpenFolderPicker -> {
@@ -132,7 +146,11 @@ class MainActivity : ComponentActivity() {
                         }
 
                         is MainScreenEffect.StartForegroundService -> {
-                            AdvertisingService.start(this@MainActivity)
+                            ExchangeService.start(effect.role, this@MainActivity)
+                        }
+
+                        is MainScreenEffect.StopForegroundService -> {
+                            ExchangeService.stop(this@MainActivity)
                         }
                     }
                 }
@@ -154,7 +172,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        viewModel.onEvent(MainScreenEvent.ActivityStarted)
+        viewModel.onScreenEvent(MainScreenEvent.ActivityStarted)
     }
 
     override fun onStart() {
@@ -199,13 +217,13 @@ class MainActivity : ComponentActivity() {
             writePermission && readPermission
         }
 
-        viewModel.onEvent(MainScreenEvent.DirectoryAccessChecked(uri, hasAccess))
+        viewModel.onScreenEvent(MainScreenEvent.DirectoryAccessChecked(uri, hasAccess))
     }
 
     private fun checkPermissions(permissions: List<String>) {
         Log.d(LOG_TRACE, "check $permissions")
         if (permissions.isEmpty()) {
-            viewModel.onEvent(MainScreenEvent.PermissionsResult(true))
+            viewModel.onScreenEvent(MainScreenEvent.PermissionsResult(true))
         } else {
             requestPermissionLauncher.launch(permissions.toTypedArray())
         }

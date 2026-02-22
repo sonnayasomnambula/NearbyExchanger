@@ -1,4 +1,4 @@
-package org.sonnayasomnambula.nearby.exchanger.service
+package org.sonnayasomnambula.nearby.exchanger
 
 import android.R
 import android.app.Notification
@@ -13,54 +13,57 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import org.sonnayasomnambula.nearby.exchanger.MainActivity
 import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.nearby.Advertiser
+import org.sonnayasomnambula.nearby.exchanger.nearby.Discoverer
+import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
 
-class AdvertisingService : Service(), ExchangeService {
+class ExchangeService : Service() {
 
-    val LOG_TRACE = "org.sonnayasomnambula.trace"
-
+    private var exchanger: Exchanger? = null
+    private var onExchangerReadyListener: ((Exchanger) -> Unit)? = null
     private val binder = LocalBinder()
 
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    inner class LocalBinder : Binder() {
+        fun getService(): ExchangeService = this@ExchangeService
+        fun setOnExchangerReadyListener(listener: (Exchanger) -> Unit) {
+            Log.d(LOG_TRACE, __func__())
+            onExchangerReadyListener = listener
+            // Если exchanger уже готов, вызываем сразу
+            exchanger?.let { listener(it) }
+        }
+    }
+
+    private val job = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     companion object {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "advertising_service_channel"
 
-        const val ACTION_SERVICE_STARTED = "ACTION_SERVICE_STARTED"
-        const val ACTION_SERVICE_STOPPED = "ACTION_SERVICE_STOPPED"
+        private const val ACTION_START = "action_start"
+        private const val ACTION_STOP = "action_stop"
 
-        fun start(context: Context) {
-            val intent = Intent(context, AdvertisingService::class.java)
+        fun start(role: Role, context: Context) {
+            Log.d(LOG_TRACE, "call ExchangeService.start")
+            val intent = Intent(context, ExchangeService::class.java)
+            intent.action = ACTION_START
+            intent.putExtra("role", role)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 context.startForegroundService(intent)
             else
                 context.startService(intent)
         }
+        fun stop(context: Context) {
+            val intent = Intent(context, ExchangeService::class.java)
+            intent.action = ACTION_STOP
+            context.startService(intent)
+        }
     }
-
-    // Состояние сервиса
-    private val _state = MutableStateFlow<ServiceState>(ServiceState.Initial)
-    override val state: StateFlow<ServiceState> = _state.asStateFlow()
-
-    // События сервиса
-    private val _events = MutableSharedFlow<ServiceEvent>()
-    override val events: SharedFlow<ServiceEvent> = _events.asSharedFlow()
-
-    override fun role(): Role = Role.ADVERTISER
 
     override fun onCreate() {
         Log.d(LOG_TRACE, "service: created")
@@ -68,10 +71,6 @@ class AdvertisingService : Service(), ExchangeService {
         super.onCreate()
         createNotificationChannel()
         startFore()
-
-        _state.value = ServiceState.Running(
-            availableDevices = emptyList()
-        )
     }
 
     private fun createNotification(): Notification {
@@ -127,35 +126,51 @@ class AdvertisingService : Service(), ExchangeService {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+
+        Log.d(LOG_TRACE, __func__())
+
+        val action = intent?.action
+
+        when (action) {
+            ACTION_START -> {
+                val role = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getSerializableExtra("role", Role::class.java)
+                } else {
+                    intent.getSerializableExtra("role") as Role
+                }
+
+                val exchanger = when (role) {
+                    Role.ADVERTISER -> Advertiser(serviceScope, applicationContext)
+                    Role.DISCOVERER -> Discoverer(serviceScope, applicationContext)
+                    else -> throw IllegalArgumentException("Role must be provided")
+                }
+
+                try {
+                    this.exchanger = exchanger
+                    onExchangerReadyListener?.invoke(exchanger)
+                    exchanger.start()
+                } catch (e: Exception) {
+                    Log.e(LOG_TRACE, "Exception during start")
+                }
+            }
+
+            ACTION_STOP -> {
+                exchanger?.stop()
+                stopSelf()
+            }
+        }
+
         return START_NOT_STICKY
     }
 
-    inner class LocalBinder : Binder() {
-        fun getService() : AdvertisingService = this@AdvertisingService
-    }
-
     override fun onBind(intent: Intent?): IBinder? {
+        Log.d(LOG_TRACE, __func__())
         return binder
     }
 
-    override fun onCommand(command: ServiceCommand) {
-        when (command) {
-            is ServiceCommand.Stop ->  {
-                stopSelf()
-            }
-            is ServiceCommand.StartSearching -> {
-                startAdvertising()
-            }
-        }
-    }
-
     override fun onDestroy() {
-        serviceScope.cancel()
+        job.cancel()
         super.onDestroy()
         Log.d(LOG_TRACE, "service: destroyed")
-    }
-
-    private fun startAdvertising() {
-
     }
 }

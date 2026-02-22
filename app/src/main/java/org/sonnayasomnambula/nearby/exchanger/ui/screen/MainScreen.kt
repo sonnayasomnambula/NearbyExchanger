@@ -16,19 +16,19 @@ fun MainScreen(
     viewModel: MainScreenViewModel,
     orientation: ScreenOrientation = ScreenOrientation.PORTRAIT
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.screenState.collectAsState()
 
     when (orientation) {
         ScreenOrientation.PORTRAIT -> {
             MainScreenPortrait(
                 state = state,
-                onEvent = viewModel::onEvent
+                onEvent = viewModel::onScreenEvent
             )
         }
         ScreenOrientation.LANDSCAPE -> {
             MainScreenLandscape(
                 state = state,
-                onEvent = viewModel::onEvent
+                onEvent = viewModel::onScreenEvent
             )
         }
     }

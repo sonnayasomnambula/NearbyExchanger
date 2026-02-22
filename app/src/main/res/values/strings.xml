@@ -5,6 +5,7 @@
     <string name="connection_state_advertising">Advertising...</string>
     <string name="connection_state_discovering">Discovering...</string>
     <string name="connection_state_connected">Connected</string>
+    <string name="connection_state_error">Error</string>
     <string name="advertiser">Advertiser</string>
     <string name="discoverer">Discoverer</string>
     <string name="send_label">Send</string>

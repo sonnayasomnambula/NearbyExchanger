@@ -2,23 +2,18 @@ package org.sonnayasomnambula.nearby.exchanger.model
 
 import android.Manifest
 import android.os.Build
-import org.sonnayasomnambula.nearby.exchanger.service.AdvertisingService
 
 interface PermissionPolicy {
-    fun permissionsForServiceStart() : List<String>
     fun permissionsFor(role: Role): List<String>
 }
 
 class AndroidPermissionPolicy : PermissionPolicy {
-    override fun permissionsForServiceStart(): List<String> {
-        return when {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU -> emptyList()
-            else -> listOf(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
     override fun permissionsFor(role: Role): List<String> {
         val list = mutableListOf<String>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list += Manifest.permission.NEARBY_WIFI_DEVICES
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             list += Manifest.permission.FOREGROUND_SERVICE_DATA_SYNC

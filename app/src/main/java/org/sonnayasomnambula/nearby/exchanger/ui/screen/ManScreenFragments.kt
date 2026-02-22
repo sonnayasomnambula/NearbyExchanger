@@ -55,6 +55,7 @@ fun ConnectionState.getDisplayText(): String {
         ConnectionState.ADVERTISING -> stringResource(R.string.connection_state_advertising)
         ConnectionState.DISCOVERING -> stringResource(R.string.connection_state_discovering)
         ConnectionState.CONNECTED -> stringResource(R.string.connection_state_connected)
+        ConnectionState.ERROR -> stringResource(R.string.connection_state_error)
     }
 }
 
@@ -78,7 +79,7 @@ fun RoleSelectorRow(
 ) {
     Row(
         modifier = modifier
-            .clickable {
+            .clickable(enabled = state.connectionState == ConnectionState.DISCONNECTED) {
                 onEvent(MainScreenEvent.RoleSelected(role))
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -87,7 +88,7 @@ fun RoleSelectorRow(
         val textResourceId = if (role == Role.ADVERTISER) R.string.advertiser else R.string.discoverer
 
         RadioButton(
-            enabled = state.connectionState != ConnectionState.CONNECTED,
+            enabled = state.connectionState == ConnectionState.DISCONNECTED,
             selected = state.currentRole == role,
             onClick = {
                 onEvent(MainScreenEvent.RoleSelected(role))
@@ -131,7 +132,7 @@ fun BigPanel(
 ) {
     when (state.connectionState) {
         ConnectionState.DISCONNECTED -> {
-            StartingHint(modifier)
+            StaticText(stringResource(R.string.starting_hint), modifier)
         }
         ConnectionState.ADVERTISING,
         ConnectionState.DISCOVERING-> {
@@ -140,11 +141,15 @@ fun BigPanel(
         ConnectionState.CONNECTED -> {
             DirectoryList(state.saveDirs, state.currentDir, onEvent, modifier)
         }
+        ConnectionState.ERROR -> {
+            StaticText("", modifier)
+        }
     }
 }
 
 @Composable
-private fun StartingHint(
+private fun StaticText(
+    text: String,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -152,7 +157,7 @@ private fun StartingHint(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = stringResource(R.string.starting_hint),
+            text = text,
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             textAlign = TextAlign.Center,
