@@ -5,28 +5,29 @@ data class RemoteDevice(
     val endpointId: String,
     /// [DiscoveredEndpointInfo.endpointName] или [ConnectionInfo.endpointName]
     val name: String,
-    /// Токен аутентификации (обычно 4-5 цифр), который нужно показать пользователю
-    val authenticationToken: String? = null,
     /// Текущая стадия обмена с удалённым устройством
-    val connectionState: ConnectionState = ConnectionState.DISCONNECTED
+    val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
+    /// Токен аутентификации (обычно 4-5 цифр), который нужно показать пользователю
+    val authenticationToken: String? = null
 ) {
     enum class ConnectionState {
         DISCONNECTED,
-        DISCOVERED,
         CONNECTING,
         AWAITING_CONFIRM,
         CONNECTED,
     }
 
-    fun update(
-        name: String? = null,
+    fun updated(
         authenticationToken: String? = null,
         connectionState: ConnectionState? = null
     ): RemoteDevice {
         return this.copy(
-            name = name ?: this.name,
-            authenticationToken = authenticationToken ?: this.authenticationToken,
             connectionState = connectionState ?: this.connectionState,
+            authenticationToken = authenticationToken ?: this.authenticationToken,
         )
+    }
+
+    fun updated(state: ConnectionState): RemoteDevice {
+        return this.copy(connectionState = state)
     }
 }

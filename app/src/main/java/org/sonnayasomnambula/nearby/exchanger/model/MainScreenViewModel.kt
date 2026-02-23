@@ -17,8 +17,10 @@ import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
 import org.sonnayasomnambula.nearby.exchanger.__func__
 import org.sonnayasomnambula.nearby.exchanger.app.Storage
+import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeCommand
 import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeEvent
+import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeMode
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeState
 
 enum class Role { ADVERTISER, DISCOVERER }
@@ -36,7 +38,7 @@ data class MainScreenState (
     val saveDirs: List<SaveDir> = emptyList(),
     val currentDir: Uri? = null,
     val statusText: String = "",
-    val availableDevices: List<RemoteDevice> = emptyList(),
+    val devices: List<RemoteDevice> = emptyList(),
 )
 
 // activity/composable => model
@@ -52,6 +54,7 @@ sealed interface MainScreenEvent {
     data object ServiceStopped: MainScreenEvent
     data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
     data class PermissionsResult(val granted: Boolean) : MainScreenEvent
+    data class DeviceClicked(val device: RemoteDevice) : MainScreenEvent
 }
 
 // model => activity
@@ -142,7 +145,7 @@ class MainScreenViewModel(
 
     private var exchanger: Exchanger? = null
 
-    private val _exchangerState = MutableStateFlow<ExchangeState>(ExchangeState.Initial)
+    private val _exchangerState = MutableStateFlow<ExchangeState>(ExchangeState())
     val exchangerState: StateFlow<ExchangeState> = _exchangerState.asStateFlow()
 
     private val _exchangerEvents = MutableSharedFlow<ExchangeEvent>()
@@ -168,7 +171,20 @@ class MainScreenViewModel(
             is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
             is MainScreenEvent.DirectoryAccessChecked -> onDirectoryAccessChecked(event.uri, event.hasAccess)
             is MainScreenEvent.PermissionsResult -> onPermissionResult(granted = event.granted)
+            is MainScreenEvent.DeviceClicked -> onDeviceClicked(event.device)
         }
+    }
+
+    private fun onDeviceClicked(device: RemoteDevice) {
+        when (device.connectionState) {
+            RemoteDevice.ConnectionState.DISCONNECTED -> {
+                exchanger?.execute(ExchangeCommand.ConnectEndpoint(device.endpointId))
+            }
+            else -> {
+                exchanger?.execute(ExchangeCommand.DisconnectEndpoint(device.endpointId))
+            }
+        }
+
     }
 
     private fun onPermissionResult(granted: Boolean) {
@@ -211,36 +227,60 @@ class MainScreenViewModel(
         }
     }
 
+    private fun determineConnectionState(exchangerState: ExchangeState): ConnectionState {
+        return when (val mode = exchangerState.mode) {
+            is ExchangeMode.Failed -> ConnectionState.ERROR
+
+            is ExchangeMode.Running -> {
+                when (mode.role) {
+                    Role.ADVERTISER -> ConnectionState.ADVERTISING
+                    Role.DISCOVERER -> ConnectionState.DISCOVERING
+                }
+            }
+
+            ExchangeMode.Stopped -> {
+                // Если есть хотя бы одно подключённое устройство
+                if (exchangerState.devices.any { it.connectionState == RemoteDevice.ConnectionState.CONNECTED }) {
+                    ConnectionState.CONNECTED
+                } else {
+                    ConnectionState.DISCONNECTED
+                }
+            }
+        }
+    }
+
+    private fun determineStatusText(exchangerState: ExchangeState): String {
+        return when (val mode = exchangerState.mode) {
+            is ExchangeMode.Failed -> mode.message
+            else -> ""
+        }
+    }
+
     fun subscribeToExchanger(exchanger: Exchanger) {
         Log.d(LOG_TRACE, __func__())
         this.exchanger = exchanger
 
         viewModelScope.launch {
-            exchanger.state.collect { state ->
-                _exchangerState.value = state
+            exchanger.state.collect { exchangerState ->
+                _exchangerState.value = exchangerState
 
-                when (state) {
-                    ExchangeState.Stopped -> {
-                    }
-                    ExchangeState.Initial -> {
-                    }
-                    is ExchangeState.Running -> {
-                    }
-                    is ExchangeState.Failed -> {
-                        Log.e(LOG_TRACE, "model: ExchangeState.Failed")
-                        _screenState.update { currentState ->
-                            currentState.copy(
-                                connectionState = ConnectionState.ERROR,
-                                statusText = state.message
-                            )
-                        }
-                    }
+                _screenState.update { currentState ->
+                    currentState.copy(
+                        devices = exchangerState.devices,
+                        connectionState = determineConnectionState(exchangerState),
+                        statusText = determineStatusText(exchangerState)
+                    )
                 }
             }
         }
 
         viewModelScope.launch {
             exchanger.events.collect { event ->
+                when (event) {
+                    is ExchangeEvent.EndpointConnected -> {
+                        exchanger.execute(ExchangeCommand.StopSearching)
+                    }
+                }
                 _exchangerEvents.emit(event)
             }
         }

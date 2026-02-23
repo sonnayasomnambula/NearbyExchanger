@@ -8,33 +8,37 @@ interface PermissionPolicy {
 }
 
 class AndroidPermissionPolicy : PermissionPolicy {
-    override fun permissionsFor(role: Role): List<String> {
-        val list = mutableListOf<String>()
-
+    override fun permissionsFor(role: Role): List<String> = buildSet {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            list += Manifest.permission.NEARBY_WIFI_DEVICES
+            add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            list += Manifest.permission.FOREGROUND_SERVICE_DATA_SYNC
+            add(Manifest.permission.FOREGROUND_SERVICE_DATA_SYNC)
         }
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            list += Manifest.permission.ACCESS_FINE_LOCATION
-        } else {
-            list += Manifest.permission.BLUETOOTH_ADVERTISE
-            list += Manifest.permission.BLUETOOTH_CONNECT
-            list += Manifest.permission.BLUETOOTH_SCAN
+        when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+            else -> {
+                add(Manifest.permission.BLUETOOTH_ADVERTISE)
+                add(Manifest.permission.BLUETOOTH_CONNECT)
+                add(Manifest.permission.BLUETOOTH_SCAN)
+            }
+        }
+
+        if (role == Role.DISCOVERER) {
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            list += Manifest.permission.READ_EXTERNAL_STORAGE
+            add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            list += Manifest.permission.POST_NOTIFICATIONS
+            add(Manifest.permission.POST_NOTIFICATIONS)
         }
-
-        return list
-    }
+    }.toList()
 }
