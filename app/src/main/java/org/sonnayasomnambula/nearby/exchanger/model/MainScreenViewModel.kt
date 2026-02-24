@@ -56,7 +56,8 @@ sealed interface MainScreenEvent {
     data class DirectorySelected(val uri: Uri) : MainScreenEvent
     data class RoleSelected(val role: Role) : MainScreenEvent
     data object DisconnectClicked : MainScreenEvent
-    data object SendClicked : MainScreenEvent
+    data object SendFileClicked : MainScreenEvent
+    data object SendFolderClicked : MainScreenEvent
     data class ServiceStarted(val role: Role): MainScreenEvent
     data object ServiceStopped: MainScreenEvent
     data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
@@ -66,12 +67,13 @@ sealed interface MainScreenEvent {
 
 // model => activity
 sealed interface MainScreenEffect {
-    data object OpenFolderPicker : MainScreenEffect
     data class CheckDirectoryAccess(val uri: Uri) : MainScreenEffect
     data class RequestPermissions(val permissions: List<String>) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
     data object StopForegroundService : MainScreenEffect
     data class ShowDisconnectedAlert(val device: RemoteDevice) : MainScreenEffect
+    data class PickFile(val readOnly: Boolean) : MainScreenEffect
+    data class PickDirectory(val readOnly: Boolean) : MainScreenEffect
 }
 
 /**
@@ -160,6 +162,9 @@ class MainScreenViewModel(
 
     private sealed interface PendingAction {
         data class StartService(val role: Role) : PendingAction
+        data object AddSaveDirectory : PendingAction
+        data object SendFile : PendingAction
+        data object SendDirectory : PendingAction
     }
 
     private var pendingAction: PendingAction? = null
@@ -174,7 +179,8 @@ class MainScreenViewModel(
             is MainScreenEvent.AddDirectoryRequested -> requestAddDir()
             is MainScreenEvent.DirectorySelected -> setCurrentDir(event.uri)
             is MainScreenEvent.RemoveDirectoryRequested -> removeDir(event.uri)
-            is MainScreenEvent.SendClicked -> onSendClicked()
+            is MainScreenEvent.SendFileClicked -> onSendFileClicked()
+            is MainScreenEvent.SendFolderClicked -> onSendFolderClicked()
             is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
             is MainScreenEvent.DirectoryAccessChecked -> onDirectoryAccessChecked(event.uri, event.hasAccess)
             is MainScreenEvent.PermissionsResult -> onPermissionResult(granted = event.granted)
@@ -199,10 +205,8 @@ class MainScreenViewModel(
             viewModelScope.launch {
                 val action = requireNotNull(pendingAction)
                 pendingAction = null
-                when (action) {
-                    is PendingAction.StartService -> {
-                        _activityEffects.send(MainScreenEffect.StartForegroundService(action.role))
-                    }
+                if (action is PendingAction.StartService) {
+                    _activityEffects.send(MainScreenEffect.StartForegroundService(action.role))
                 }
             }
         }
@@ -305,7 +309,8 @@ class MainScreenViewModel(
                     )
                 }
 
-                _activityEffects.send(MainScreenEffect.OpenFolderPicker)
+                pendingAction = PendingAction.AddSaveDirectory
+                _activityEffects.send(MainScreenEffect.PickDirectory(readOnly = false))
             }
         }
     }
@@ -347,7 +352,27 @@ class MainScreenViewModel(
         }
     }
 
-    fun addSaveDir(uri: Uri, name: String) {
+    fun filePicked(uri: Uri) {
+        val action = requireNotNull(pendingAction)
+        pendingAction = null
+        if (action is PendingAction.SendFile) {
+            exchanger?.execute(ExchangeCommand.SendFile(uri))
+        }
+    }
+
+    fun directoryPicked(uri: Uri, name: String) {
+        val action = requireNotNull(pendingAction)
+        pendingAction = null
+        if (action is PendingAction.AddSaveDirectory) {
+            addSaveDirectory(uri, name)
+        }
+
+        if (action is PendingAction.SendDirectory) {
+            exchanger?.execute(ExchangeCommand.SendDirectory(uri))
+        }
+    }
+
+    private fun addSaveDirectory(uri: Uri, name: String) {
         _screenState.update { state ->
             val alreadyExists = state.saveDirs.any { it.uri == uri }
             if (alreadyExists) {
@@ -389,11 +414,17 @@ class MainScreenViewModel(
         }
     }
 
-    private fun onSendClicked() {
-        val state = _screenState.value
+    private fun onSendFileClicked() {
+        viewModelScope.launch {
+            pendingAction = PendingAction.SendFile
+            _activityEffects.send(MainScreenEffect.PickFile(readOnly = true))
+        }
+    }
 
-        if (state.currentRole == null) {
-            return
+    private fun onSendFolderClicked() {
+        viewModelScope.launch {
+            pendingAction = PendingAction.SendDirectory
+            _activityEffects.send(MainScreenEffect.PickDirectory(readOnly = true))
         }
     }
 
@@ -409,7 +440,8 @@ class MainScreenViewModel(
 
     private fun requestAddDir() {
         viewModelScope.launch {
-            _activityEffects.send(MainScreenEffect.OpenFolderPicker)
+            pendingAction = PendingAction.AddSaveDirectory
+            _activityEffects.send(MainScreenEffect.PickDirectory(readOnly = false))
         }
     }
 

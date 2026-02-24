@@ -1,6 +1,7 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.nearby.connection.AdvertisingOptions
@@ -14,14 +15,18 @@ import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.update
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
+import org.sonnayasomnambula.nearby.exchanger.__func__
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
 class Advertiser(scope: CoroutineScope, context: Context)
     : NearbyExchanger(Role.ADVERTISER, scope, context) {
     override fun execute(command: ExchangeCommand) {
-        if (command is ExchangeCommand.StopSearching) {
-            stopAdvertising()
+        when (command) {
+            is ExchangeCommand.StopSearching -> stopAdvertising()
+            is ExchangeCommand.SendDirectory -> sendDirectory(command.uri)
+            is ExchangeCommand.SendFile -> sendFile(command.uri)
+            else -> {}
         }
     }
 
@@ -153,5 +158,13 @@ class Advertiser(scope: CoroutineScope, context: Context)
             // Обновление прогресса передачи
             Log.d(LOG_TRACE, "onPayloadTransferUpdate from $endpointId, bytes: ${update.bytesTransferred}/${update.totalBytes}")
         }
+    }
+
+    private fun sendFile(uri: Uri) {
+        Log.d(LOG_TRACE, "send file $uri")
+    }
+
+    private fun sendDirectory(uri: Uri) {
+        Log.d(LOG_TRACE, "send dir $uri")
     }
 }

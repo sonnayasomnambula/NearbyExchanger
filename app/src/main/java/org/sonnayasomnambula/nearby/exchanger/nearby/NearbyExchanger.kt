@@ -1,6 +1,7 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import com.google.android.gms.nearby.Nearby
 import kotlinx.coroutines.CoroutineScope

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Card
@@ -44,6 +45,7 @@ fun DevicesList(
         Text(
             text = stringResource(R.string.devices_list_header),
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 4.dp)
         )
 
@@ -82,8 +84,6 @@ fun DeviceItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-
     Card(
         modifier = modifier.fillMaxWidth(),
         onClick = onClick,
@@ -136,7 +136,7 @@ fun DeviceItem(
             // Стрелка или индикатор для кликабельных элементов
             if (device.connectionState == RemoteDevice.ConnectionState.DISCONNECTED) {
                 Icon(
-                    imageVector = Icons.Default.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )

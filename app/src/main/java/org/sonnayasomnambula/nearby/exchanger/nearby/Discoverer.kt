@@ -1,6 +1,7 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.nearby.Nearby
@@ -37,6 +38,8 @@ class Discoverer(scope: CoroutineScope, context: Context)
             is ExchangeCommand.ConnectEndpoint -> connectEndpoint(command.endpointId)
             is ExchangeCommand.DisconnectEndpoint -> disconnectEndpoint(command.endpointId)
             is ExchangeCommand.StopSearching -> stopDiscovery()
+            is ExchangeCommand.SendDirectory -> sendDirectory(command.uri)
+            is ExchangeCommand.SendFile -> sendFile(command.uri)
         }
     }
 
@@ -190,5 +193,13 @@ class Discoverer(scope: CoroutineScope, context: Context)
         Log.d(LOG_TRACE, "Disconnecting from endpoint: $endpointId")
         connectionsClient.disconnectFromEndpoint(endpointId)
         setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+    }
+
+    private fun sendFile(uri: Uri) {
+        Log.d(LOG_TRACE, "send file $uri")
+    }
+
+    private fun sendDirectory(uri: Uri) {
+        Log.d(LOG_TRACE, "send dir $uri")
     }
 }

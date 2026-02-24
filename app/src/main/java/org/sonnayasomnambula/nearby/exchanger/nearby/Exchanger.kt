@@ -1,5 +1,6 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
+import android.net.Uri
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
@@ -31,6 +32,8 @@ sealed class ExchangeCommand {
     data class ConnectEndpoint(val endpointId: String) : ExchangeCommand()
     data class DisconnectEndpoint(val endpointId: String) : ExchangeCommand()
     object StopSearching : ExchangeCommand()
+    data class SendFile(val uri: Uri) : ExchangeCommand()
+    data class SendDirectory(val uri: Uri) : ExchangeCommand()
 }
 
 interface Exchanger {

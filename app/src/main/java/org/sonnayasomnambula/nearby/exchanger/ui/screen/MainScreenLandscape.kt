@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +22,8 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.Role
+
+import org.sonnayasomnambula.nearby.exchanger.MainActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,12 +65,7 @@ fun MainScreenLandscape(
                         RoleSelectorRow(Role.DISCOVERER, state, onEvent, Modifier.fillMaxWidth())
                     }
 
-                    ActionButton(
-                        stringResource(R.string.send_label),
-                        state.connectionState == ConnectionState.CONNECTED
-                    ) {
-                        onEvent(MainScreenEvent.SendClicked)
-                    }
+                    SendRow(state, onEvent)
 
                     ActionButton(
                         stringResource(R.string.disconnect_label),

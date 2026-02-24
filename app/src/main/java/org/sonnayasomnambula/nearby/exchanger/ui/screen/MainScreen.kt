@@ -1,5 +1,6 @@
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import org.sonnayasomnambula.nearby.exchanger.MainActivity
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 
 import org.sonnayasomnambula.nearby.exchanger.ui.screen.MainScreenLandscape
@@ -21,14 +22,14 @@ fun MainScreen(
     when (orientation) {
         ScreenOrientation.PORTRAIT -> {
             MainScreenPortrait(
-                state = state,
-                onEvent = viewModel::onScreenEvent
+                state,
+                viewModel::onScreenEvent
             )
         }
         ScreenOrientation.LANDSCAPE -> {
             MainScreenLandscape(
-                state = state,
-                onEvent = viewModel::onScreenEvent
+                state,
+                viewModel::onScreenEvent
             )
         }
     }

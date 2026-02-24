@@ -30,9 +30,6 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModelFactory
-import org.sonnayasomnambula.nearby.exchanger.model.Role
-import org.sonnayasomnambula.nearby.exchanger.nearby.NearbyExchanger
-import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
 
 
 import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
@@ -54,21 +51,51 @@ class MainActivity : ComponentActivity() {
         MainScreenViewModelFactory(application as MyApplication)
     }
 
-    private val folderPicker =
-        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            if (uri != null) {
-                contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
+    private inner class DocumentPicker {
+        private var currentReadOnly: Boolean = false
 
-                viewModel.addSaveDir(
-                    uri = uri,
-                    name = uri.lastPathSegment ?: "Folder"
-                )
+        private val directoryPicker =
+            registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                uri?.let { uri ->
+                    requestPermissions(uri)
+                    viewModel.directoryPicked(
+                        uri = uri,
+                        name = uri.lastPathSegment ?: "Folder"
+                    )
+                }
             }
+
+        private val filePicker =
+            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                uri?.let { uri ->
+                    requestPermissions(uri)
+                    viewModel.filePicked(uri)
+                }
+            }
+
+        public fun pickDirectory(readOnly: Boolean) {
+            currentReadOnly = readOnly
+            directoryPicker.launch(null)
         }
+
+        public fun pickFile(readOnly: Boolean) {
+            currentReadOnly = readOnly
+            filePicker.launch(arrayOf("*/*"))
+        }
+
+        private fun requestPermissions(uri: Uri) {
+            val flags = if (currentReadOnly) {
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            } else {
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            }
+
+            contentResolver.takePersistableUriPermission(uri, flags)
+        }
+    }
+
+    private val picker = DocumentPicker()
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -125,10 +152,6 @@ class MainActivity : ComponentActivity() {
                 viewModel.activityEffects.collect { effect ->
                     Log.d(LOG_TRACE, "activity: effect ${effect.toString()}")
                     when (effect) {
-                        is MainScreenEffect.OpenFolderPicker -> {
-                            folderPicker.launch(null)
-                        }
-
                         is MainScreenEffect.ShowDisconnectedAlert -> {
                             val text = getString(R.string.device_disconnected, effect.device.name)
                             Toast.makeText(
@@ -152,6 +175,14 @@ class MainActivity : ComponentActivity() {
 
                         is MainScreenEffect.StopForegroundService -> {
                             ExchangeService.stop(this@MainActivity)
+                        }
+
+                        is MainScreenEffect.PickFile -> {
+                            picker.pickFile(effect.readOnly)
+                        }
+
+                        is MainScreenEffect.PickDirectory -> {
+                            picker.pickDirectory(effect.readOnly)
                         }
                     }
                 }
