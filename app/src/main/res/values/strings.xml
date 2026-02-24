@@ -23,4 +23,5 @@
     <string name="remove_directory_title">Remove directory</string>
     <string name="remove_directory_text">Are you sure you want to remove this directory from the list?</string>
     <string name="operation_not_allowed">Operation not allowed</string>
+    <string name="device_disconnected">%1$s disconnected</string>
 </resources>

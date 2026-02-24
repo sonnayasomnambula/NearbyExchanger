@@ -25,6 +25,7 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.model.correspondingRole
 
 @Composable
 fun ConnectionState.getDisplayText(): String {
@@ -67,6 +68,8 @@ fun ConnectionStateText(connectionState: ConnectionState) {
     )
 }
 
+
+
 @Composable
 fun RoleSelectorRow(
     role: Role,
@@ -86,7 +89,7 @@ fun RoleSelectorRow(
 
         RadioButton(
             enabled = state.connectionState == ConnectionState.DISCONNECTED,
-            selected = state.currentRole == role,
+            selected = state.connectionState.correspondingRole == role,
             onClick = {
                 onEvent(MainScreenEvent.RoleSelected(role))
             }

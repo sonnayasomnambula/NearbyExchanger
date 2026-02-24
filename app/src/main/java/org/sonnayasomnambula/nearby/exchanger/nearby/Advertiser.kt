@@ -12,6 +12,7 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.update
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
@@ -29,6 +30,7 @@ class Advertiser(scope: CoroutineScope, context: Context)
     }
 
     override fun stop() {
+        dropDevices()
         stopAdvertising()
     }
 
@@ -68,9 +70,18 @@ class Advertiser(scope: CoroutineScope, context: Context)
         }
     }
 
+    private fun dropDevices() {
+        for (device in _state.value.devices) {
+            connectionsClient.disconnectFromEndpoint(device.endpointId)
+        }
+        _state.update { currentState ->
+            currentState.copy(devices = emptyList())
+        }
+    }
+
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
-            Log.d("Advertiser", "Auto-accepting connection from $endpointId")
+            Log.d(LOG_TRACE, "Auto-accepting connection from $endpointId")
             connectionsClient.acceptConnection(endpointId, payloadCallback)
             setDevice(RemoteDevice(
                 endpointId,
@@ -83,8 +94,11 @@ class Advertiser(scope: CoroutineScope, context: Context)
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.SUCCESS -> {
                     Log.d(LOG_TRACE, "onConnectionResult: SUCCESS for $endpointId")
-                    setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTED))
-                    sendEvent(ExchangeEvent.EndpointConnected(endpointId))
+                    val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTED)
+                    if (device != null) {
+                        setDevice(device)
+                        sendEvent(ExchangeEvent.EndpointConnected(device))
+                    }
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
                     Log.d(LOG_TRACE, "onConnectionResult: REJECTED for $endpointId")
@@ -99,7 +113,11 @@ class Advertiser(scope: CoroutineScope, context: Context)
 
         override fun onDisconnected(endpointId: String) {
             Log.d(LOG_TRACE, "client $endpointId disconnected")
-            setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+            val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED)
+            if (device != null) {
+                setDevice(device)
+                sendEvent(ExchangeEvent.EndpointDisconnected(device))
+            }
         }
     }
 

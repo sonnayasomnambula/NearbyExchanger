@@ -27,6 +27,13 @@ enum class Role { ADVERTISER, DISCOVERER }
 
 enum class ConnectionState { DISCONNECTED, ADVERTISING, DISCOVERING, CONNECTED, ERROR }
 
+val ConnectionState.correspondingRole: Role?
+    get() = when (this) {
+        ConnectionState.ADVERTISING -> Role.ADVERTISER
+        ConnectionState.DISCOVERING -> Role.DISCOVERER
+        else -> null
+    }
+
 data class SaveDir(
     val name: String,
     val uri: Uri,
@@ -60,11 +67,11 @@ sealed interface MainScreenEvent {
 // model => activity
 sealed interface MainScreenEffect {
     data object OpenFolderPicker : MainScreenEffect
-    data class ShowMessage(val text: String) : MainScreenEffect
     data class CheckDirectoryAccess(val uri: Uri) : MainScreenEffect
     data class RequestPermissions(val permissions: List<String>) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
     data object StopForegroundService : MainScreenEffect
+    data class ShowDisconnectedAlert(val device: RemoteDevice) : MainScreenEffect
 }
 
 /**
@@ -202,17 +209,7 @@ class MainScreenViewModel(
     }
 
     private fun onServiceStarted(role: Role) {
-        viewModelScope.launch {
-            _screenState.update { currentState ->
-                currentState.copy(
-                    currentRole = role,
-                    connectionState = when (role) {
-                        Role.ADVERTISER -> ConnectionState.ADVERTISING
-                        Role.DISCOVERER -> ConnectionState.DISCOVERING
-                    }
-                )
-            }
-        }
+        // all be done in subscribeToExchanger()
     }
 
     private fun onServiceStopped() {
@@ -221,7 +218,8 @@ class MainScreenViewModel(
                 currentState.copy(
                     connectionState = ConnectionState.DISCONNECTED,
                     currentRole = null,
-                    statusText = ""
+                    statusText = "",
+                    devices = emptyList()
                 )
             }
         }
@@ -266,8 +264,9 @@ class MainScreenViewModel(
 
                 _screenState.update { currentState ->
                     currentState.copy(
-                        devices = exchangerState.devices,
                         connectionState = determineConnectionState(exchangerState),
+                        currentRole = exchanger.role(),
+                        devices = exchangerState.devices,
                         statusText = determineStatusText(exchangerState)
                     )
                 }
@@ -279,6 +278,9 @@ class MainScreenViewModel(
                 when (event) {
                     is ExchangeEvent.EndpointConnected -> {
                         exchanger.execute(ExchangeCommand.StopSearching)
+                    }
+                    is ExchangeEvent.EndpointDisconnected -> {
+                        _activityEffects.send(MainScreenEffect.ShowDisconnectedAlert(event.device))
                     }
                 }
                 _exchangerEvents.emit(event)
@@ -391,9 +393,6 @@ class MainScreenViewModel(
         val state = _screenState.value
 
         if (state.currentRole == null) {
-            viewModelScope.launch {
-                _activityEffects.send(MainScreenEffect.ShowMessage("Выберите роль"))
-            }
             return
         }
     }

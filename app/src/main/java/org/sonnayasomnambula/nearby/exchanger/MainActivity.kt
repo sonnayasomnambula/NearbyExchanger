@@ -129,10 +129,11 @@ class MainActivity : ComponentActivity() {
                             folderPicker.launch(null)
                         }
 
-                        is MainScreenEffect.ShowMessage -> {
+                        is MainScreenEffect.ShowDisconnectedAlert -> {
+                            val text = getString(R.string.device_disconnected, effect.device.name)
                             Toast.makeText(
                                 this@MainActivity,
-                                effect.text,
+                                text,
                                 Toast.LENGTH_SHORT
                             ).show()
                         }

@@ -28,6 +28,7 @@ class Discoverer(scope: CoroutineScope, context: Context)
     }
 
     override fun stop() {
+        dropDevices()
         stopDiscovery()
     }
 
@@ -99,8 +100,11 @@ class Discoverer(scope: CoroutineScope, context: Context)
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.SUCCESS -> {
                     Log.d(LOG_TRACE, "onConnectionResult: SUCCESS for $endpointId")
-                    setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTED))
-                    sendEvent(ExchangeEvent.EndpointConnected(endpointId))
+                    val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTED)
+                    if (device != null) {
+                        setDevice(device)
+                        sendEvent(ExchangeEvent.EndpointConnected(device))
+                    }
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
                     Log.d(LOG_TRACE, "onConnectionResult: REJECTED for $endpointId")
@@ -115,7 +119,11 @@ class Discoverer(scope: CoroutineScope, context: Context)
 
         override fun onDisconnected(endpointId: String) {
             Log.d(LOG_TRACE, "onDisconnected: $endpointId")
-            setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+            val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED)
+            if (device != null) {
+                setDevice(device)
+                sendEvent(ExchangeEvent.EndpointDisconnected(device))
+            }
         }
     }
 
@@ -150,6 +158,15 @@ class Discoverer(scope: CoroutineScope, context: Context)
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
             // Обновление прогресса передачи
             Log.d(LOG_TRACE, "onPayloadTransferUpdate from $endpointId, bytes: ${update.bytesTransferred}/${update.totalBytes}")
+        }
+    }
+
+    private fun dropDevices() {
+        for (device in _state.value.devices) {
+            connectionsClient.disconnectFromEndpoint(device.endpointId)
+        }
+        _state.update { currentState ->
+            currentState.copy(devices = emptyList())
         }
     }
 

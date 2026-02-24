@@ -136,6 +136,7 @@ class ExchangeService : Service() {
                 val role = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent.getSerializableExtra("role", Role::class.java)
                 } else {
+                    @Suppress("DEPRECATION")
                     intent.getSerializableExtra("role") as Role
                 }
 
