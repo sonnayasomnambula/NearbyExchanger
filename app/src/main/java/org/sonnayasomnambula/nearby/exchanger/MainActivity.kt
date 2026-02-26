@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
                             Toast.makeText(
                                 this@MainActivity,
                                 text,
-                                Toast.LENGTH_SHORT
+                                Toast.LENGTH_LONG
                             ).show()
                         }
 

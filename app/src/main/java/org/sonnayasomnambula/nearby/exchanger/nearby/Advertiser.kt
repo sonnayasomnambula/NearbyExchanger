@@ -1,7 +1,6 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.nearby.connection.AdvertisingOptions
@@ -15,7 +14,7 @@ import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.update
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
-import org.sonnayasomnambula.nearby.exchanger.__func__
+import org.sonnayasomnambula.nearby.exchanger.model.ConnectionState
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
@@ -23,9 +22,8 @@ class Advertiser(scope: CoroutineScope, context: Context)
     : NearbyExchanger(Role.ADVERTISER, scope, context) {
     override fun execute(command: ExchangeCommand) {
         when (command) {
-            is ExchangeCommand.StopSearching -> stopAdvertising()
-            is ExchangeCommand.SendDirectory -> sendDirectory(command.uri)
-            is ExchangeCommand.SendFile -> sendFile(command.uri)
+            is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
+            is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
             else -> {}
         }
     }
@@ -40,7 +38,7 @@ class Advertiser(scope: CoroutineScope, context: Context)
     }
 
     private fun startAdvertising() {
-        setMode(ExchangeMode.Stopped)
+        setSearchingMode(SearchingMode.Stopped)
 
         val advertisingOptions = AdvertisingOptions.Builder()
             .setStrategy(STRATEGY)
@@ -56,11 +54,11 @@ class Advertiser(scope: CoroutineScope, context: Context)
             // 2. Более короткая запись для лямбд. "_" означает, что параметр не используется.
             .addOnSuccessListener { _ ->
                 Log.d(LOG_TRACE, "advertising started successfully!")
-                setMode(ExchangeMode.Running(role()))
+                setSearchingMode(SearchingMode.Running(role()))
             }
             .addOnFailureListener { exception ->
                 Log.e(LOG_TRACE, "advertising failed", exception)
-                setMode(ExchangeMode.Failed(
+                setSearchingMode(SearchingMode.Failed(
                     message = "Failed to start advertising: ${exception.message}",
                     errorCode = (exception as? ApiException)?.statusCode,
                     throwable = exception
@@ -69,18 +67,9 @@ class Advertiser(scope: CoroutineScope, context: Context)
     }
 
     fun stopAdvertising() {
-        if (mode() is ExchangeMode.Running) {
+        if (searchingMode() is SearchingMode.Running) {
             connectionsClient.stopAdvertising()
-            setMode(ExchangeMode.Stopped)
-        }
-    }
-
-    private fun dropDevices() {
-        for (device in _state.value.devices) {
-            connectionsClient.disconnectFromEndpoint(device.endpointId)
-        }
-        _state.update { currentState ->
-            currentState.copy(devices = emptyList())
+            setSearchingMode(SearchingMode.Stopped)
         }
     }
 
@@ -88,40 +77,71 @@ class Advertiser(scope: CoroutineScope, context: Context)
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
             Log.d(LOG_TRACE, "Auto-accepting connection from $endpointId")
             connectionsClient.acceptConnection(endpointId, payloadCallback)
-            setDevice(RemoteDevice(
-                endpointId,
-                connectionInfo.endpointName,
-                RemoteDevice.ConnectionState.CONNECTING
-            ))
+
+            val device = RemoteDevice(
+                endpointId = endpointId,
+                name = connectionInfo.endpointName,
+                connectionState = RemoteDevice.ConnectionState.AWAITING_CONFIRM
+            )
+
+            updateSession { session ->
+                when (session) {
+                    is SessionState.None -> {
+                        session.withUpdatedDevice(device)
+                    }
+                    is SessionState.Connected -> {
+                        Log.w(LOG_TRACE, "Already connected, ignoring connection from $endpointId")
+                        session
+                    }
+                }
+            }
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.SUCCESS -> {
                     Log.d(LOG_TRACE, "onConnectionResult: SUCCESS for $endpointId")
-                    val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTED)
-                    if (device != null) {
-                        setDevice(device)
-                        sendEvent(ExchangeEvent.EndpointConnected(device))
+
+                    when (val session = _state.value.session) {
+                        is SessionState.None -> {
+                            val device =
+                                session.device(endpointId) ?:
+                                RemoteDevice(endpointId, "Unknown device")
+
+                            val connectedDevice =
+                                device.updated(RemoteDevice.ConnectionState.CONNECTED)
+                            updateSession {
+                                SessionState.Connected(connectedDevice)
+                            }
+
+                            stopAdvertising()
+                            sendEvent(ExchangeEvent.EndpointConnected(connectedDevice))
+                        }
+                        is SessionState.Connected -> {
+                            Log.w(LOG_TRACE, "Unexpected connection from $endpointId: already connected to ${session.device.endpointId}; drop")
+                            connectionsClient.disconnectFromEndpoint(endpointId)
+                        }
                     }
-                }
-                ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
-                    Log.d(LOG_TRACE, "onConnectionResult: REJECTED for $endpointId")
-                    setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
                 }
                 else -> {
                     Log.e(LOG_TRACE, "onConnectionResult: FAILURE for $endpointId, code: ${result.status.statusCode}")
-                    setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+                    updateDevice(endpointId, RemoteDevice.ConnectionState.DISCONNECTED)
                 }
             }
         }
 
         override fun onDisconnected(endpointId: String) {
             Log.d(LOG_TRACE, "client $endpointId disconnected")
-            val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED)
-            if (device != null) {
-                setDevice(device)
-                sendEvent(ExchangeEvent.EndpointDisconnected(device))
+            when (val session = _state.value.session) {
+                is SessionState.Connected -> {
+                    val device = session.device
+                    if (device.endpointId == endpointId) {
+                        updateSession { SessionState.None() }
+                        sendEvent(ExchangeEvent.EndpointDisconnected(
+                            device.updated(RemoteDevice.ConnectionState.DISCONNECTED)))
+                    }
+                }
+                else -> {}
             }
         }
     }
@@ -129,42 +149,12 @@ class Advertiser(scope: CoroutineScope, context: Context)
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
             Log.d(LOG_TRACE, "onPayloadReceived from $endpointId, type: ${payload.type}")
-
-            when (payload.type) {
-                Payload.Type.BYTES -> {
-                    // Получены байты данных
-                    payload.asBytes()?.let { bytes ->
-                        val message = String(bytes, Charsets.UTF_8)
-                        Log.d(LOG_TRACE, "Received message: $message")
-                        // Обработка полученного сообщения
-                    }
-                }
-                Payload.Type.FILE -> {
-                    // Получен файл
-                    payload.asFile()?.let { file ->
-                        Log.d(LOG_TRACE, "Received file: ${file.toString()}")
-                        // Обработка полученного файла
-                    }
-                }
-                Payload.Type.STREAM -> {
-                    // Получен поток данных
-                    Log.d(LOG_TRACE, "Received stream")
-                    // Обработка потока
-                }
-            }
+            fileTransfer.readPayload(payload)
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
             // Обновление прогресса передачи
             Log.d(LOG_TRACE, "onPayloadTransferUpdate from $endpointId, bytes: ${update.bytesTransferred}/${update.totalBytes}")
         }
-    }
-
-    private fun sendFile(uri: Uri) {
-        Log.d(LOG_TRACE, "send file $uri")
-    }
-
-    private fun sendDirectory(uri: Uri) {
-        Log.d(LOG_TRACE, "send dir $uri")
     }
 }

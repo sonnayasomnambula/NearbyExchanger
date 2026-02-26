@@ -6,21 +6,47 @@ import kotlinx.coroutines.flow.StateFlow
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
-sealed class ExchangeMode {
-    object Stopped : ExchangeMode()
+/// Advertising / discovery state
+sealed class SearchingMode {
+    object Stopped : SearchingMode()
     data class Running(
         val role: Role
-    ) : ExchangeMode()
+    ) : SearchingMode()
     data class Failed(
         val message: String,
         val errorCode: Int? = null,
         val throwable: Throwable? = null
-    ) : ExchangeMode()
+    ) : SearchingMode()
+}
+
+/// Session for P2P_STAR strategy
+sealed class SessionState {
+    data class None(
+        /// discovered devices
+        val devices: List<RemoteDevice> = emptyList()
+    ) : SessionState() {
+        fun device(endpointId: String): RemoteDevice? =
+            devices.find { it.endpointId == endpointId }
+        fun withUpdatedDevice(device: RemoteDevice): None {
+            val map = devices.associateBy { it.endpointId }.toMutableMap()
+            map[device.endpointId] = device
+            return copy(
+                devices = map.values.sortedBy { it.name }
+            )
+        }
+
+        fun withoutDevice(endpointId: String): None =
+            copy(devices = devices.filterNot { it.endpointId == endpointId })
+    }
+    data class Connected(
+        /// single connected peer
+        val device: RemoteDevice
+    ) : SessionState()
 }
 
 data class ExchangeState(
-    val mode: ExchangeMode = ExchangeMode.Stopped,
-    val devices: List<RemoteDevice> = emptyList()
+    val searching: SearchingMode = SearchingMode.Stopped,
+    val session: SessionState = SessionState.None()
 )
 
 sealed class ExchangeEvent {
@@ -31,13 +57,13 @@ sealed class ExchangeEvent {
 sealed class ExchangeCommand {
     data class ConnectEndpoint(val endpointId: String) : ExchangeCommand()
     data class DisconnectEndpoint(val endpointId: String) : ExchangeCommand()
-    object StopSearching : ExchangeCommand()
     data class SendFile(val uri: Uri) : ExchangeCommand()
     data class SendDirectory(val uri: Uri) : ExchangeCommand()
 }
 
 interface Exchanger {
     fun role() : Role
+    fun setSaveDir(uri: Uri?)
     val state: StateFlow<ExchangeState>
     val events: SharedFlow<ExchangeEvent>
     fun execute(command: ExchangeCommand)

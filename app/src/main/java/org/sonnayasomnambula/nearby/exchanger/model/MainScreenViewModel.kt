@@ -5,12 +5,15 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -20,8 +23,9 @@ import org.sonnayasomnambula.nearby.exchanger.app.Storage
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeCommand
 import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeEvent
-import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeMode
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeState
+import org.sonnayasomnambula.nearby.exchanger.nearby.SearchingMode
+import org.sonnayasomnambula.nearby.exchanger.nearby.SessionState
 
 enum class Role { ADVERTISER, DISCOVERER }
 
@@ -148,6 +152,7 @@ class MainScreenViewModel(
 
     private val _screenState = MutableStateFlow(MainScreenState())
     val screenState: StateFlow<MainScreenState> = _screenState
+    val currentDirFlow: Flow<Uri?> = screenState.map { it.currentDir }.distinctUntilChanged()
 
     private val _activityEffects = Channel<MainScreenEffect>(Channel.BUFFERED)
     val activityEffects = _activityEffects.receiveAsFlow()
@@ -230,37 +235,47 @@ class MainScreenViewModel(
     }
 
     private fun determineConnectionState(exchangerState: ExchangeState): ConnectionState {
-        return when (val mode = exchangerState.mode) {
-            is ExchangeMode.Failed -> ConnectionState.ERROR
+        return when (val searching = exchangerState.searching) {
+            is SearchingMode.Failed -> ConnectionState.ERROR
 
-            is ExchangeMode.Running -> {
-                when (mode.role) {
+            is SearchingMode.Running -> {
+                when (searching.role) {
                     Role.ADVERTISER -> ConnectionState.ADVERTISING
                     Role.DISCOVERER -> ConnectionState.DISCOVERING
                 }
             }
-
-            ExchangeMode.Stopped -> {
-                // Если есть хотя бы одно подключённое устройство
-                if (exchangerState.devices.any { it.connectionState == RemoteDevice.ConnectionState.CONNECTED }) {
-                    ConnectionState.CONNECTED
-                } else {
-                    ConnectionState.DISCONNECTED
+            else -> {
+                when (exchangerState.session) {
+                    is SessionState.Connected -> ConnectionState.CONNECTED
+                    is SessionState.None -> ConnectionState.DISCONNECTED
                 }
             }
         }
     }
 
     private fun determineStatusText(exchangerState: ExchangeState): String {
-        return when (val mode = exchangerState.mode) {
-            is ExchangeMode.Failed -> mode.message
+        return when (val searching = exchangerState.searching) {
+            is SearchingMode.Failed -> searching.message
             else -> ""
         }
     }
 
+    val ExchangeState.devices: List<RemoteDevice>
+        get() = when (val session = this.session) {
+            is SessionState.None -> session.devices
+            is SessionState.Connected -> emptyList()
+        }
+
     fun subscribeToExchanger(exchanger: Exchanger) {
         Log.d(LOG_TRACE, __func__())
         this.exchanger = exchanger
+
+        exchanger.setSaveDir(_screenState.value.currentDir)
+        viewModelScope.launch {
+            currentDirFlow.collect { uri ->
+                exchanger.setSaveDir(uri)
+            }
+        }
 
         viewModelScope.launch {
             exchanger.state.collect { exchangerState ->
@@ -281,7 +296,7 @@ class MainScreenViewModel(
             exchanger.events.collect { event ->
                 when (event) {
                     is ExchangeEvent.EndpointConnected -> {
-                        exchanger.execute(ExchangeCommand.StopSearching)
+                        // nothing
                     }
                     is ExchangeEvent.EndpointDisconnected -> {
                         _activityEffects.send(MainScreenEffect.ShowDisconnectedAlert(event.device))

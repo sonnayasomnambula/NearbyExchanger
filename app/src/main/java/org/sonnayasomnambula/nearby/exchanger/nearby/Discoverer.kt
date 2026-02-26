@@ -37,14 +37,13 @@ class Discoverer(scope: CoroutineScope, context: Context)
         when (command) {
             is ExchangeCommand.ConnectEndpoint -> connectEndpoint(command.endpointId)
             is ExchangeCommand.DisconnectEndpoint -> disconnectEndpoint(command.endpointId)
-            is ExchangeCommand.StopSearching -> stopDiscovery()
-            is ExchangeCommand.SendDirectory -> sendDirectory(command.uri)
-            is ExchangeCommand.SendFile -> sendFile(command.uri)
+            is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
+            is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
         }
     }
 
     private fun startDiscovery() {
-        setMode(ExchangeMode.Stopped)
+        setSearchingMode(SearchingMode.Stopped)
 
         val discoveryOptions = DiscoveryOptions.Builder()
             .setStrategy(STRATEGY)
@@ -57,11 +56,11 @@ class Discoverer(scope: CoroutineScope, context: Context)
                 discoveryOptions)
             .addOnSuccessListener {
                 Log.d(LOG_TRACE, "discovery started successfully!")
-                setMode(ExchangeMode.Running(role()))
+                setSearchingMode(SearchingMode.Running(role()))
             }
             .addOnFailureListener { exception ->
                 Log.e(LOG_TRACE, "discovery failed", exception)
-                setMode(ExchangeMode.Failed(
+                setSearchingMode(SearchingMode.Failed(
                     message = "Failed to start discovery: ${exception.message}",
                     errorCode = (exception as? ApiException)?.statusCode,
                     throwable = exception
@@ -70,32 +69,58 @@ class Discoverer(scope: CoroutineScope, context: Context)
     }
 
     private fun stopDiscovery() {
-        if (mode() is ExchangeMode.Running) {
+        if (searchingMode() is SearchingMode.Running) {
             connectionsClient.stopDiscovery()
-            setMode(ExchangeMode.Stopped)
+            setSearchingMode(SearchingMode.Stopped)
         }
     }
 
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             Log.d(LOG_TRACE, "endpoint found: [$endpointId] ${info.endpointName}")
-            setDevice(RemoteDevice(
-                endpointId,
-                info.endpointName,
-                RemoteDevice.ConnectionState.DISCONNECTED
-            ))
+
+            val device = RemoteDevice(
+                endpointId = endpointId,
+                name = info.endpointName,
+                connectionState = RemoteDevice.ConnectionState.DISCONNECTED
+            )
+
+            updateSession { session ->
+                when (session) {
+                    is SessionState.None -> {
+                        session.withUpdatedDevice(device)
+                    }
+                    is SessionState.Connected -> {
+                        Log.w(LOG_TRACE, "Already connected, ignoring found $endpointId (forgot to stop discovery?)")
+                        session
+                    }
+                }
+            }
         }
 
         override fun onEndpointLost(endpointId: String) {
             Log.d(LOG_TRACE, "endpoint lost: $endpointId")
-            removeDevice(endpointId)
+            updateSession { session ->
+                when (session) {
+                    is SessionState.None -> {
+                        session.withoutDevice(endpointId)
+                    }
+                    is SessionState.Connected -> {
+                        if (session.device.endpointId == endpointId) {
+                            SessionState.Connected(session.device.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+                        } else {
+                            session
+                        }
+                    }
+                }
+            }
         }
     }
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             Log.d(LOG_TRACE, "onConnectionInitiated: $endpointId, token: ${info.authenticationDigits}")
-            setDevice(device(endpointId)?.updated(info.authenticationDigits, RemoteDevice.ConnectionState.AWAITING_CONFIRM))
+            updateDevice(endpointId, RemoteDevice.ConnectionState.AWAITING_CONFIRM)
             connectionsClient.acceptConnection(endpointId, payloadCallback)
         }
 
@@ -103,59 +128,52 @@ class Discoverer(scope: CoroutineScope, context: Context)
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.SUCCESS -> {
                     Log.d(LOG_TRACE, "onConnectionResult: SUCCESS for $endpointId")
-                    val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTED)
-                    if (device != null) {
-                        setDevice(device)
-                        sendEvent(ExchangeEvent.EndpointConnected(device))
+                    when (val session = _state.value.session) {
+                        is SessionState.None -> {
+                            val device =
+                                session.device(endpointId) ?:
+                                RemoteDevice(endpointId, "Unknown device")
+
+                            val connectedDevice =
+                                device.updated(RemoteDevice.ConnectionState.CONNECTED)
+                            updateSession {
+                                SessionState.Connected(connectedDevice)
+                            }
+
+                            stopDiscovery()
+                        }
+                        is SessionState.Connected -> {
+                            Log.w(LOG_TRACE, "Unexpected connection from $endpointId: already connected to ${session.device.endpointId}; drop")
+                            connectionsClient.disconnectFromEndpoint(endpointId)
+                        }
                     }
-                }
-                ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
-                    Log.d(LOG_TRACE, "onConnectionResult: REJECTED for $endpointId")
-                    setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
                 }
                 else -> {
                     Log.e(LOG_TRACE, "onConnectionResult: FAILURE for $endpointId, code: ${result.status.statusCode}")
-                    setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+                    updateDevice(endpointId, RemoteDevice.ConnectionState.DISCONNECTED)
                 }
             }
         }
 
         override fun onDisconnected(endpointId: String) {
-            Log.d(LOG_TRACE, "onDisconnected: $endpointId")
-            val device = device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED)
-            if (device != null) {
-                setDevice(device)
-                sendEvent(ExchangeEvent.EndpointDisconnected(device))
+            Log.d(LOG_TRACE, "client $endpointId disconnected")
+            when (val session = _state.value.session) {
+                is SessionState.Connected -> {
+                    val device = session.device
+                    if (device.endpointId == endpointId) {
+                        updateSession { SessionState.None() }
+                        sendEvent(ExchangeEvent.EndpointDisconnected(
+                            device.updated(RemoteDevice.ConnectionState.DISCONNECTED)))
+                    }
+                }
+                else -> {}
             }
         }
     }
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            Log.d(LOG_TRACE, "onPayloadReceived from $endpointId, type: ${payload.type}")
-
-            when (payload.type) {
-                Payload.Type.BYTES -> {
-                    // Получены байты данных
-                    payload.asBytes()?.let { bytes ->
-                        val message = String(bytes, Charsets.UTF_8)
-                        Log.d(LOG_TRACE, "Received message: $message")
-                        // Обработка полученного сообщения
-                    }
-                }
-                Payload.Type.FILE -> {
-                    // Получен файл
-                    payload.asFile()?.let { file ->
-                        Log.d(LOG_TRACE, "Received file: ${file.toString()}")
-                        // Обработка полученного файла
-                    }
-                }
-                Payload.Type.STREAM -> {
-                    // Получен поток данных
-                    Log.d(LOG_TRACE, "Received stream")
-                    // Обработка потока
-                }
-            }
+            fileTransfer.readPayload(payload)
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
@@ -164,18 +182,9 @@ class Discoverer(scope: CoroutineScope, context: Context)
         }
     }
 
-    private fun dropDevices() {
-        for (device in _state.value.devices) {
-            connectionsClient.disconnectFromEndpoint(device.endpointId)
-        }
-        _state.update { currentState ->
-            currentState.copy(devices = emptyList())
-        }
-    }
-
     private fun connectEndpoint(endpointId: String) {
         Log.d(LOG_TRACE, "Connecting to endpoint: $endpointId")
-        setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.CONNECTING))
+        updateDevice(endpointId, RemoteDevice.ConnectionState.CONNECTING)
 
         connectionsClient.requestConnection(
             readableDeviceName(),
@@ -185,21 +194,13 @@ class Discoverer(scope: CoroutineScope, context: Context)
             Log.d(LOG_TRACE, "Connection request sent successfully to $endpointId")
         }.addOnFailureListener { exception ->
             Log.e(LOG_TRACE, "Failed to request connection to $endpointId", exception)
-            setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
+            updateDevice(endpointId, RemoteDevice.ConnectionState.DISCONNECTED)
         }
     }
 
     private fun disconnectEndpoint(endpointId: String) {
         Log.d(LOG_TRACE, "Disconnecting from endpoint: $endpointId")
         connectionsClient.disconnectFromEndpoint(endpointId)
-        setDevice(device(endpointId)?.updated(RemoteDevice.ConnectionState.DISCONNECTED))
-    }
-
-    private fun sendFile(uri: Uri) {
-        Log.d(LOG_TRACE, "send file $uri")
-    }
-
-    private fun sendDirectory(uri: Uri) {
-        Log.d(LOG_TRACE, "send dir $uri")
+        updateDevice(endpointId, RemoteDevice.ConnectionState.DISCONNECTED)
     }
 }
