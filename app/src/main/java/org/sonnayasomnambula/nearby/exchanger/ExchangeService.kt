@@ -29,7 +29,6 @@ class ExchangeService : Service() {
     private val binder = LocalBinder()
 
     inner class LocalBinder : Binder() {
-        fun getService(): ExchangeService = this@ExchangeService
         fun setOnExchangerReadyListener(listener: (Exchanger) -> Unit) {
             Log.d(LOG_TRACE, __func__())
             onExchangerReadyListener = listener

@@ -1,10 +1,8 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.ConnectionInfo
 import com.google.android.gms.nearby.connection.ConnectionLifecycleCallback
 import com.google.android.gms.nearby.connection.ConnectionResolution
@@ -16,7 +14,6 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.update
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
@@ -29,7 +26,7 @@ class Discoverer(scope: CoroutineScope, context: Context)
     }
 
     override fun stop() {
-        dropDevices()
+        dropSession()
         stopDiscovery()
     }
 

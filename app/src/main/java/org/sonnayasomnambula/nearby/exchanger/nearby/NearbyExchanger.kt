@@ -1,10 +1,11 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.util.Log
-import androidx.compose.foundation.gestures.TransformableState
 import androidx.documentfile.provider.DocumentFile
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.Payload
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
+import java.io.IOException
 
 abstract class NearbyExchanger(
     private val exchangerRole: Role,
@@ -40,7 +42,7 @@ abstract class NearbyExchanger(
     override val events: SharedFlow<ExchangeEvent> = _events.asSharedFlow()
 
     override fun setSaveDir(uri: Uri?) {
-        fileTransfer.currentDir = uri
+        fileTransfer.setSaveDir(uri)
     }
 
     protected val connectionsClient = Nearby.getConnectionsClient(context)
@@ -81,7 +83,7 @@ abstract class NearbyExchanger(
         }
     }
 
-    protected fun dropDevices() {
+    protected fun dropSession() {
         when (val session = _state.value.session) {
             is SessionState.Connected -> {
                 if (session.device.connectionState != RemoteDevice.ConnectionState.DISCONNECTED) {
@@ -107,29 +109,135 @@ abstract class NearbyExchanger(
         }
     }
 
-    sealed class TransferState {
-        object Idle : TransferState()
+    class TransferableFile (
+        private val uri: Uri,
+        private val contentResolver: ContentResolver,
+        override val path: String = "",
+        override val size: Long = 0,
+    ) : TransferEngine.FileImpl() {
 
-        data class ListReady(
-            val files: List<FileEntry>,
-            val requestId: Int
-        ) : TransferState()
+        fun openDescriptor(mode: String = "r"): ParcelFileDescriptor {
+            return contentResolver.openFileDescriptor(uri, mode)
+                ?: throw IOException("Cannot open file descriptor for $uri")
+        }
 
-        data class FileReady(
-            val files: List<FileEntry>,
-            val fileEntry: FileEntry,
-            val requestId: Int
-        ) : TransferState()
+        override fun save(destination: TransferEngine.File) {
+            val targetUri = (destination as TransferableFile).uri
+            createDirectories(targetUri, contentResolver)
+            moveTo(uri, targetUri, contentResolver)
+        }
+
+        override fun createChild(entry: JsonSerializer.FileEntry) : TransferEngine.File {
+            val uri = this.uri
+                .buildUpon()
+                .appendPath(entry.path)
+                .build()
+
+            return TransferableFile(
+                uri,
+                this.contentResolver,
+                entry.path,
+                entry.size
+            )
+        }
+
+        companion object {
+            fun walkDirectory(root: Uri, context: Context) : List<TransferableFile> {
+                val rootDocument = DocumentFile.fromTreeUri(context, root)
+                    ?: throw IllegalArgumentException("Invalid directory URI: $root")
+
+                return buildList {
+                    val rootName = rootDocument.name ?: ""
+                    collectFiles(rootDocument, rootName, context, this)
+                }
+            }
+
+            private fun collectFiles(
+                document: DocumentFile,
+                currentPath: String,
+                context: Context,
+                fileList: MutableList<TransferableFile>
+            ) {
+                when {
+                    document.isDirectory -> {
+                        document.listFiles().forEach { child ->
+                            val newPath = if (currentPath.isEmpty()) {
+                                child.name ?: ""
+                            } else {
+                                "$currentPath/${child.name ?: ""}"
+                            }
+                            collectFiles(child, newPath, context, fileList)
+                        }
+                    }
+                    document.isFile -> {
+                        document.length().takeIf { it > 0 }?.let { size ->
+                            val fileName = document.name ?: "unknown"
+                            val relativePath = if (currentPath.isEmpty()) fileName else "$currentPath/$fileName"
+                            fileList.add(
+                                TransferableFile(
+                                    document.uri,
+                                    context.contentResolver,
+                                    relativePath,
+                                    size))
+                        }
+                    }
+                }
+            }
+
+            private fun createDirectories(uri: Uri, contentResolver: ContentResolver) {
+                val path = uri.path ?: return
+                val parts = path.split('/').filter { it.isNotEmpty() }
+                val builder = uri.buildUpon()
+                builder.path("")
+
+                for (part in parts) {
+                    builder.appendPath(part)
+                    val dirUri = builder.build()
+
+                    try {
+                        contentResolver.openOutputStream(dirUri, "wt")?.close()
+                    } catch (e: Exception) {
+                        Log.w(LOG_TRACE,"Unable to create directory $dirUri", e)
+                    }
+                }
+            }
+
+            private fun moveTo(sourceUri: Uri, destinationUri: Uri, contentResolver: ContentResolver) {
+                try {
+                    contentResolver.openInputStream(sourceUri)?.use { input ->
+                            contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
+                                    input.copyTo(output)
+                                    output.flush()
+                                } ?: throw IOException("Failed to open output stream for $destinationUri")
+                        } ?: throw IOException("Failed to open input stream for $sourceUri")
+                } finally {
+                    contentResolver.delete(sourceUri, null, null)
+                }
+            }
+        }
     }
 
     protected inner class FileTransfer {
+        private val engine = TransferEngine()
 
-        var currentDir: Uri? = null
-        var device: RemoteDevice? = null
+        val device: RemoteDevice? = (_state.value.session as? SessionState.Connected)?.device
 
-        private var requestId = 0
-        private var sendState : TransferState = TransferState.Idle
-        private var recvState : TransferState = TransferState.Idle
+        fun setSaveDir(uri: Uri?) {
+            engine.saveDir = if (uri == null) null else TransferableFile(
+                uri,
+                context.contentResolver
+            )
+        }
+
+        fun sendFile(uri: Uri) {
+            Log.d(LOG_TRACE, "send file $uri")
+        }
+
+        fun sendDirectory(uri: Uri) {
+            val files = TransferableFile.walkDirectory(uri, context)
+            val actions = engine.send(files)
+            perform(actions)
+        }
 
         fun readPayload(payload: Payload) {
             when (payload.type) {
@@ -148,120 +256,62 @@ abstract class NearbyExchanger(
             }
         }
 
-        private fun readFile(file: Payload.File) {
-            Log.d(LOG_TRACE, "Received file: ${file.toString()}")
-        }
-
         private fun readMessage(message: String) {
-            Log.d(LOG_TRACE, "Received message: $message")
-            val serializer = FileListSerializer()
+            val actions = engine.readMessage(message)
+            perform(actions)
+        }
 
-            try {
-                val response = serializer.decodeResponse(message)
-            } catch (e: Exception) {
-
+        private fun readFile(file: Payload.File) {
+            val tempUri = requireNotNull(file.asUri()) {
+                "Received file without URI: $file"
             }
+            val tempFile = TransferableFile(
+                tempUri,
+                context.contentResolver
+            )
 
+            val actions = engine.readFile(tempFile)
+            perform(actions)
+        }
 
-            try {
-                when (recvState) {
-                    is TransferState.Idle -> {
-                        val decoded = serializer.decodeList(message)
-                        recvState = TransferState.ListReady(decoded.files, decoded.request)
-
-                        val jsonString = serializer.encode(decoded.request, FileListSerializer.READY)
-                        sendPayload(jsonString)
-                    }
-                    is TransferState.ListReady -> {
-                        val decoded = serializer.decodeEntry(message)
-                        recvState = TransferState.FileReady(
-                            (recvState as TransferState.ListReady).files,
-                            FileEntry(decoded.path, decoded.size),
-                            decoded.request
-                        )
-                    }
-
-                    else -> {
-                        throw IllegalStateException("invalid recvState")
-                    }
+        fun perform(actions: List<TransferEngine.Action>) {
+            for (action in actions) {
+                when (action) {
+                    is TransferEngine.Action.Network.SendFile -> performSendFile(action.file)
+                    is TransferEngine.Action.Network.SendMessage -> performSendMessage(action.message)
+                    is TransferEngine.Action.Local.Save -> performSave(action.source, action.destination)
+                    is TransferEngine.Action.Local.Notify -> performNotify(action.message)
+                    is TransferEngine.Action.Local.Warning -> performWarning(action.message)
                 }
-            } catch (e: Exception) {
-                Log.w(LOG_TRACE, "FileTransfer: Unable to read message", e)
-                recvState = TransferState.Idle
             }
         }
 
-        fun sendFile(uri: Uri) {
-            Log.d(LOG_TRACE, "send file $uri")
+        private fun performSave(source: TransferEngine.File, destination: TransferEngine.File) {
+            source.save(destination)
         }
 
-        fun sendDirectory(uri: Uri) {
-            if (sendState != TransferState.Idle) return
-
-            try {
-                val serializer = FileListSerializer()
-                val outgoing = serializer.buildFileList(uri, context)
-
-                Log.d(LOG_TRACE, "send directory $uri")
-                Log.d(LOG_TRACE, "Total files: ${outgoing.size}")
-
-                val requestId = ++this.requestId
-
-                sendState = TransferState.ListReady(outgoing, requestId)
-
-                val jsonString = serializer.encode(requestId, outgoing)
-                sendPayload(jsonString)
-            } catch (e: Exception) {
-                Log.e(LOG_TRACE, "Failed to create manifest", e)
-            }
-        }
-
-        private fun sendPayload(payload: String) {
+        private fun performSendFile(file: TransferEngine.File) {
             device?.let { device ->
-                val bytes = payload.toByteArray(Charsets.UTF_8)
+                val descriptor = (file as TransferableFile).openDescriptor()
+                connectionsClient.sendPayload(device.endpointId, Payload.fromFile(descriptor))
+            }
+        }
+
+        private fun performSendMessage(message: String) {
+            device?.let { device ->
+                val bytes = message.toByteArray(Charsets.UTF_8)
                 connectionsClient.sendPayload(device.endpointId, Payload.fromBytes(bytes))
             }
+        }
+
+        private fun performNotify(message: String) {
+            sendEvent(ExchangeEvent.RemoteError(message))
+        }
+
+        private fun performWarning(message: String) {
+            Log.w(LOG_TRACE, message)
         }
     }
 
     protected val fileTransfer = FileTransfer()
-}
-
-fun FileListSerializer.buildFileList(uri: Uri, context: Context): List<FileEntry> {
-    val rootDoc = DocumentFile.fromTreeUri(context, uri)
-        ?: throw IllegalArgumentException("Invalid directory URI")
-
-    val entries = mutableListOf<FileEntry>()
-    walkDirectory(rootDoc, "", entries)
-    entries.sortBy { it.path }
-
-    return entries
-}
-
-private fun FileListSerializer.walkDirectory(
-    doc: DocumentFile,
-    currentPath: String,
-    entries: MutableList<FileEntry>
-) {
-    if (!doc.exists()) return
-
-    if (doc.isDirectory) {
-        doc.listFiles().forEach { child ->
-            val newPath = if (currentPath.isEmpty()) {
-                child.name ?: ""
-            } else {
-                "$currentPath/${child.name}"
-            }
-            walkDirectory(child, newPath, entries)
-        }
-    } else if (doc.isFile) {
-        doc.name?.let { fileName ->
-            entries.add(
-                FileEntry(
-                    path = currentPath,
-                    size = doc.length()
-                )
-            )
-        }
-    }
 }

@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
 import org.sonnayasomnambula.nearby.exchanger.__func__
 import org.sonnayasomnambula.nearby.exchanger.app.Storage
+import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect.*
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeCommand
 import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeEvent
@@ -134,14 +135,16 @@ sealed interface MainScreenEffect {
  *     ↓
  * MainScreenEffect.StartForegroundService(role)
  *     ↓
- * // Service starts and binds; UI notifies Model
+ * [Service starts and binds (automatic due to bind in onStart)]
+ * [Service creates internal Exchanger object (Advertiser/Discoverer) in active searching state]
+ *     ↓
+ * [Using the callback from Service.LocalBinder, Activity gets a reference
+ *  to the service's internal Exchanger object and passes it to the model]
+ *     ↓
+ * [Model subscribes to Exchanger state and events]
+ * [Model updates UI state based on Exchanger role and state]
+ *     ↓
  * MainScreenEvent.ServiceStarted(role)
- *     ↓
- * [Model stores service reference for communication]
- * [Model updates UI state based on service role]
- * [Model commands service to begin operation]
- *     ↓
- * ServiceCommand.StartSearching
  * </pre>
  */
 class MainScreenViewModel(
@@ -299,7 +302,11 @@ class MainScreenViewModel(
                         // nothing
                     }
                     is ExchangeEvent.EndpointDisconnected -> {
-                        _activityEffects.send(MainScreenEffect.ShowDisconnectedAlert(event.device))
+                        _activityEffects.send(ShowDisconnectedAlert(event.device))
+                    }
+
+                    is ExchangeEvent.RemoteError -> {
+                        throw NotImplementedError("[NOT IMPLEMENTED] Remote error: ${event.message}")
                     }
                 }
                 _exchangerEvents.emit(event)

@@ -12,29 +12,28 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.update
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
-import org.sonnayasomnambula.nearby.exchanger.model.ConnectionState
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
 class Advertiser(scope: CoroutineScope, context: Context)
     : NearbyExchanger(Role.ADVERTISER, scope, context) {
-    override fun execute(command: ExchangeCommand) {
-        when (command) {
-            is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
-            is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
-            else -> {}
-        }
-    }
 
     override fun start() {
         startAdvertising()
     }
 
     override fun stop() {
-        dropDevices()
+        dropSession()
         stopAdvertising()
+    }
+
+    override fun execute(command: ExchangeCommand) {
+        when (command) {
+            is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
+            is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
+            else -> {}
+        }
     }
 
     private fun startAdvertising() {
