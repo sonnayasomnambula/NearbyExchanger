@@ -1,6 +1,9 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
+//import TransferEngine.TransferStatistics.Direction
+
 class TransferEngine {
+    enum class Direction { In, Out }
     interface File {
         val path: String
         val size: Long
@@ -12,12 +15,40 @@ class TransferEngine {
     abstract class FileImpl : File {
         override fun toFileEntry() = JsonSerializer.FileEntry(path, size)
     }
+
+    data class TransferStatistics(
+        val queue: List<String> = emptyList(),
+        val current: String = "",
+        val totalBytes: Long = 0,
+        val totalProgress: Long = 0,
+        val currentBytes: Long = 0,
+    )
+
     data class Session(
         var requestId: Int = 0,
-        var endpointId: String = "",
         var files: List<File> = emptyList(),
-        var fileIndex: Int = -1
-    )
+        var fileIndex: Int = -1,
+    ) {
+        fun statistics(): TransferStatistics {
+            return if (fileIndex in files.indices) {
+                TransferStatistics(
+                    queue = files.drop(fileIndex + 1).map { it.path },
+                    current = files[fileIndex].path,
+                    totalBytes = files.sumOf { it.size },
+                    totalProgress = files.take(fileIndex).sumOf { it.size },
+                    currentBytes = files[fileIndex].size
+                )
+            } else {
+                TransferStatistics(
+                    queue = files.map { it.path },
+                    current = "",
+                    totalBytes = files.sumOf { it.size },
+                    totalProgress = if (fileIndex >= files.size) files.sumOf { it.size } else 0,
+                    currentBytes = 0
+                )
+            }
+        }
+    }
 
     sealed interface Action {
         sealed interface Network : Action {
@@ -28,6 +59,8 @@ class TransferEngine {
             data class Save(val source: File, val destination: File) : Local
             data class Notify(val message: String) : Local
             data class Warning(val message: String) : Local
+            data class Progress(val direction: Direction, val progress: Long = 0) : Local
+            data class Statistics(val direction: Direction, val statistics: TransferStatistics) : Local
         }
     }
 
@@ -40,7 +73,9 @@ class TransferEngine {
 
     fun send(files: List<File>) : List<Action> {
         if (outgoing.fileIndex != -1) {
-            return listOf(Action.Local.Warning("previous transfer is not completed"))
+            return listOf(
+                Action.Local.Warning("previous transfer is not completed")
+            )
         }
 
         outgoing.files = files
@@ -50,18 +85,21 @@ class TransferEngine {
         val request = serializer.encodeList(outgoing.requestId, entryList)
 
         return listOf(
-            Action.Network.SendMessage(request)
+            Action.Network.SendMessage(request),
+            Action.Local.Progress(Direction.Out, 0),
+            Action.Local.Statistics(Direction.Out, outgoing.statistics())
         )
     }
 
     fun readFile(file: File) : List<Action> {
         val destination = incoming.files[incoming.fileIndex]
-
         val response = serializer.encodeResponse(incoming.requestId, JsonSerializer.DONE)
 
         return listOf(
+            Action.Local.Progress(Direction.In, destination.size),
             Action.Local.Save(file, destination),
-            Action.Network.SendMessage(response))
+            Action.Network.SendMessage(response)
+        )
     }
 
     fun readMessage(message: String) : List<Action>  {
@@ -86,15 +124,23 @@ class TransferEngine {
 
     private fun handleResponse(response: JsonSerializer.Response) : List<Action> {
         if (response.requestId != outgoing.requestId) {
-            outgoing.fileIndex = -1 // skip
-            return listOf(Action.Local.Warning("wrong response: expected ${outgoing.requestId}, got ${response.requestId}"))
+            // skip
+            outgoing.files = emptyList()
+            outgoing.fileIndex = -1
+            return listOf(
+                Action.Local.Warning("wrong response: expected ${outgoing.requestId}, got ${response.requestId}"),
+                Action.Local.Progress(Direction.Out, 0),
+                Action.Local.Statistics(Direction.Out, outgoing.statistics())
+            )
         }
 
         if (response.status == JsonSerializer.READY) {
             if (outgoing.fileIndex == -1) {
                 val request = serializer.encodeIndex(++outgoing.requestId, ++outgoing.fileIndex)
                 return listOf(
-                    Action.Network.SendMessage(request)
+                    Action.Network.SendMessage(request),
+                    Action.Local.Progress(Direction.Out, 0),
+                    Action.Local.Statistics(Direction.Out, outgoing.statistics())
                 )
             } else {
                 require(outgoing.fileIndex < outgoing.files.size)
@@ -106,21 +152,29 @@ class TransferEngine {
             if (++outgoing.fileIndex < outgoing.files.size) {
                 val request = serializer.encodeIndex(++outgoing.requestId, outgoing.fileIndex)
                 return listOf(
-                    Action.Network.SendMessage(request)
+                    Action.Network.SendMessage(request),
+                    Action.Local.Progress(Direction.Out, 0),
+                    Action.Local.Statistics(Direction.Out, outgoing.statistics())
                 )
             } else {
                 outgoing.files = emptyList()
                 outgoing.fileIndex = -1
-                return emptyList()
+                return listOf(
+                    Action.Local.Progress(Direction.Out, 0),
+                    Action.Local.Statistics(Direction.Out, outgoing.statistics())
+                )
             }
         } else {
+            outgoing.files = emptyList()
             outgoing.fileIndex = -1
-            return emptyList()
+            return listOf(
+                Action.Local.Progress(Direction.Out, 0),
+                Action.Local.Statistics(Direction.Out, outgoing.statistics())
+            )
         }
     }
 
     private fun handleListRequest(request: JsonSerializer.FileListRequest) : List<Action> {
-
         if (saveDir == null) {
             val response = serializer.encodeResponse(request.requestId, JsonSerializer.NO_DIR)
             return listOf(
@@ -137,7 +191,11 @@ class TransferEngine {
         }
 
         val response = serializer.encodeResponse(request.requestId, JsonSerializer.READY)
-        return listOf(Action.Network.SendMessage(response))
+        return listOf(
+            Action.Network.SendMessage(response),
+            Action.Local.Progress(Direction.In, 0),
+            Action.Local.Statistics(Direction.In, incoming.statistics())
+        )
     }
 
     private fun handleIndexRequest(request: JsonSerializer.IndexRequest) : List<Action> {
@@ -150,7 +208,9 @@ class TransferEngine {
 
         val response = serializer.encodeResponse(request.requestId, JsonSerializer.READY)
         return listOf(
-            Action.Network.SendMessage(response)
+            Action.Network.SendMessage(response),
+            Action.Local.Progress(Direction.In, 0),
+            Action.Local.Statistics(Direction.In, incoming.statistics())
         )
     }
 }

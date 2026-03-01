@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.google.android.gms.nearby.Nearby
@@ -184,6 +185,31 @@ abstract class NearbyExchanger(
                 }
             }
 
+            fun fromUri(uri: Uri, context: Context): TransferableFile {
+                val contentResolver = context.contentResolver
+                val fileName = when (uri.scheme) {
+                    "content" -> {
+                        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val nameIndex = cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
+                            if (cursor.moveToFirst()) cursor.getString(nameIndex) else null
+                        }
+                    }
+                    "file" -> uri.path?.substringAfterLast('/')
+                    else -> null
+                } ?: "unknown"
+
+                val fileSize = contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                    descriptor.statSize
+                } ?: 0L
+
+                return TransferableFile(
+                    uri = uri,
+                    contentResolver = contentResolver,
+                    path = fileName,
+                    size = fileSize
+                )
+            }
+
             private fun createDirectories(uri: Uri, contentResolver: ContentResolver) {
                 val path = uri.path ?: return
                 val parts = path.split('/').filter { it.isNotEmpty() }
@@ -230,7 +256,9 @@ abstract class NearbyExchanger(
         }
 
         fun sendFile(uri: Uri) {
-            Log.d(LOG_TRACE, "send file $uri")
+            val files = listOf(TransferableFile.fromUri(uri, context))
+            val actions = engine.send(files)
+            perform(actions)
         }
 
         fun sendDirectory(uri: Uri) {
@@ -282,34 +310,64 @@ abstract class NearbyExchanger(
                     is TransferEngine.Action.Local.Save -> performSave(action.source, action.destination)
                     is TransferEngine.Action.Local.Notify -> performNotify(action.message)
                     is TransferEngine.Action.Local.Warning -> performWarning(action.message)
+                    is TransferEngine.Action.Local.Progress -> updateProgress(action.direction, action.progress)
+                    is TransferEngine.Action.Local.Statistics -> updateStatistics(action.direction, action.statistics)
                 }
             }
         }
 
-        private fun performSave(source: TransferEngine.File, destination: TransferEngine.File) {
+        private fun performSave(
+            source: TransferEngine.File,
+            destination: TransferEngine.File
+        ) {
             source.save(destination)
         }
 
-        private fun performSendFile(file: TransferEngine.File) {
+        private fun performSendFile(
+            file: TransferEngine.File
+        ) {
             device?.let { device ->
                 val descriptor = (file as TransferableFile).openDescriptor()
                 connectionsClient.sendPayload(device.endpointId, Payload.fromFile(descriptor))
             }
         }
 
-        private fun performSendMessage(message: String) {
+        private fun performSendMessage(
+            message: String
+        ) {
             device?.let { device ->
                 val bytes = message.toByteArray(Charsets.UTF_8)
+                Log.d(LOG_TRACE, "send ${bytes.size} b to ${device.endpointId}")
                 connectionsClient.sendPayload(device.endpointId, Payload.fromBytes(bytes))
             }
         }
 
-        private fun performNotify(message: String) {
+        private fun performNotify(
+            message: String
+        ) {
             sendEvent(ExchangeEvent.RemoteError(message))
         }
 
-        private fun performWarning(message: String) {
+        private fun performWarning(
+            message: String
+        ) {
             Log.w(LOG_TRACE, message)
+        }
+
+        private fun updateProgress(
+            direction: TransferEngine.Direction,
+            progress: Long
+        ) {
+            Log.d(LOG_TRACE, "[${direction.name}] $progress b sent")
+        }
+
+        private fun updateStatistics(
+            direction: TransferEngine.Direction,
+            statistics: TransferEngine.TransferStatistics
+        ) {
+            statistics.let {
+                Log.d(LOG_TRACE, "[${direction.name}] ${it.current} | ${it.currentBytes} / ${it.totalBytes} b | ${it.queue.size} left")
+            }
         }
     }
 
