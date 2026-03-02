@@ -1,52 +1,66 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
-//import TransferEngine.TransferStatistics.Direction
+import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 
 class TransferEngine {
     enum class Direction { In, Out }
     interface File {
         val path: String
         val size: Long
+        val mime: String
+
         fun toFileEntry(): JsonSerializer.FileEntry
-        fun save(destination: File)
-        fun createChild(entry: JsonSerializer.FileEntry) : File
+        fun save(directory: File, path: String, mime: String)
+        fun createFrom(entry: JsonSerializer.FileEntry) : File
     }
 
     abstract class FileImpl : File {
-        override fun toFileEntry() = JsonSerializer.FileEntry(path, size)
+        override fun toFileEntry() = JsonSerializer.FileEntry(path, size, mime)
     }
 
     data class TransferStatistics(
         val queue: List<String> = emptyList(),
         val current: String = "",
-        val totalBytes: Long = 0,
+        val totalSize: Long = 0,
         val totalProgress: Long = 0,
-        val currentBytes: Long = 0,
     )
 
     data class Session(
         var requestId: Int = 0,
         var files: List<File> = emptyList(),
         var fileIndex: Int = -1,
+        var payloads: MutableMap<Long, File> = mutableMapOf()
     ) {
+        fun reset() {
+            fileIndex = -1
+            files = emptyList()
+        }
         fun statistics(): TransferStatistics {
             return if (fileIndex in files.indices) {
                 TransferStatistics(
                     queue = files.drop(fileIndex + 1).map { it.path },
                     current = files[fileIndex].path,
-                    totalBytes = files.sumOf { it.size },
+                    totalSize = files.sumOf { it.size },
                     totalProgress = files.take(fileIndex).sumOf { it.size },
-                    currentBytes = files[fileIndex].size
                 )
             } else {
                 TransferStatistics(
                     queue = files.map { it.path },
                     current = "",
-                    totalBytes = files.sumOf { it.size },
+                    totalSize = files.sumOf { it.size },
                     totalProgress = if (fileIndex >= files.size) files.sumOf { it.size } else 0,
-                    currentBytes = 0
                 )
             }
+        }
+
+        fun currentFile() : File? {
+            return if (fileIndex in files.indices)
+                files[fileIndex]
+            else null
+        }
+
+        fun currentFileSize(): Long {
+            return currentFile()?.size ?: 0
         }
     }
 
@@ -56,10 +70,10 @@ class TransferEngine {
             data class SendMessage(val message: String) : Network
         }
         sealed interface Local : Action {
-            data class Save(val source: File, val destination: File) : Local
+            data class Save(val source: File, val directory: File, val path: String, val mime: String) : Local
             data class Notify(val message: String) : Local
             data class Warning(val message: String) : Local
-            data class Progress(val direction: Direction, val progress: Long = 0) : Local
+            data class Progress(val direction: Direction, val size: Long, val progress: Long) : Local
             data class Statistics(val direction: Direction, val statistics: TransferStatistics) : Local
         }
     }
@@ -86,24 +100,17 @@ class TransferEngine {
 
         return listOf(
             Action.Network.SendMessage(request),
-            Action.Local.Progress(Direction.Out, 0),
+            Action.Local.Progress(Direction.Out, outgoing.currentFileSize(),0),
             Action.Local.Statistics(Direction.Out, outgoing.statistics())
         )
     }
 
-    fun readFile(file: File) : List<Action> {
-        val destination = incoming.files[incoming.fileIndex]
-        val response = serializer.encodeResponse(incoming.requestId, JsonSerializer.DONE)
-
-        return listOf(
-            Action.Local.Progress(Direction.In, destination.size),
-            Action.Local.Save(file, destination),
-            Action.Network.SendMessage(response)
-        )
+    fun readFile(file: File, payloadId: Long) : List<Action> {
+        savePayloadId(Direction.In, payloadId, file)
+        return emptyList()
     }
 
     fun readMessage(message: String) : List<Action>  {
-
         val response = serializer.decodeResponse(message)
         if (response != null) {
             return handleResponse(response)
@@ -125,24 +132,25 @@ class TransferEngine {
     private fun handleResponse(response: JsonSerializer.Response) : List<Action> {
         if (response.requestId != outgoing.requestId) {
             // skip
-            outgoing.files = emptyList()
-            outgoing.fileIndex = -1
+            outgoing.reset()
             return listOf(
                 Action.Local.Warning("wrong response: expected ${outgoing.requestId}, got ${response.requestId}"),
-                Action.Local.Progress(Direction.Out, 0),
+                Action.Local.Progress(Direction.Out, 0, 0),
                 Action.Local.Statistics(Direction.Out, outgoing.statistics())
             )
         }
 
         if (response.status == JsonSerializer.READY) {
             if (outgoing.fileIndex == -1) {
+                // go to the first file
                 val request = serializer.encodeIndex(++outgoing.requestId, ++outgoing.fileIndex)
                 return listOf(
                     Action.Network.SendMessage(request),
-                    Action.Local.Progress(Direction.Out, 0),
+                    Action.Local.Progress(Direction.Out, outgoing.currentFileSize(),0),
                     Action.Local.Statistics(Direction.Out, outgoing.statistics())
                 )
             } else {
+                // send file
                 require(outgoing.fileIndex < outgoing.files.size)
                 return listOf(
                     Action.Network.SendFile(outgoing.files[outgoing.fileIndex])
@@ -150,26 +158,27 @@ class TransferEngine {
             }
         } else if (response.status == JsonSerializer.DONE) {
             if (++outgoing.fileIndex < outgoing.files.size) {
+                // go to the next file
                 val request = serializer.encodeIndex(++outgoing.requestId, outgoing.fileIndex)
                 return listOf(
                     Action.Network.SendMessage(request),
-                    Action.Local.Progress(Direction.Out, 0),
+                    Action.Local.Progress(Direction.Out, outgoing.currentFileSize(), 0),
                     Action.Local.Statistics(Direction.Out, outgoing.statistics())
                 )
             } else {
-                outgoing.files = emptyList()
-                outgoing.fileIndex = -1
+                // done
+                outgoing.reset()
                 return listOf(
-                    Action.Local.Progress(Direction.Out, 0),
+                    Action.Local.Progress(Direction.Out, 0, 0),
                     Action.Local.Statistics(Direction.Out, outgoing.statistics())
                 )
             }
         } else {
-            outgoing.files = emptyList()
-            outgoing.fileIndex = -1
+            outgoing.reset()
             return listOf(
-                Action.Local.Progress(Direction.Out, 0),
-                Action.Local.Statistics(Direction.Out, outgoing.statistics())
+                Action.Local.Warning("Unknown response status '${response.status}'"),
+                Action.Local.Progress(Direction.Out, 0, 0),
+                Action.Local.Statistics(Direction.Out, TransferStatistics())
             )
         }
     }
@@ -185,15 +194,15 @@ class TransferEngine {
 
         // TODO check available space
 
-        incoming.fileIndex = -1
+        incoming.reset()
         incoming.files = request.files.map { entry ->
-            saveDir!!.createChild(entry)
+            saveDir!!.createFrom(entry)
         }
 
         val response = serializer.encodeResponse(request.requestId, JsonSerializer.READY)
         return listOf(
             Action.Network.SendMessage(response),
-            Action.Local.Progress(Direction.In, 0),
+            Action.Local.Progress(Direction.In, incoming.currentFileSize(), 0),
             Action.Local.Statistics(Direction.In, incoming.statistics())
         )
     }
@@ -209,8 +218,56 @@ class TransferEngine {
         val response = serializer.encodeResponse(request.requestId, JsonSerializer.READY)
         return listOf(
             Action.Network.SendMessage(response),
-            Action.Local.Progress(Direction.In, 0),
+            Action.Local.Progress(Direction.In, incoming.currentFileSize(),0),
             Action.Local.Statistics(Direction.In, incoming.statistics())
         )
+    }
+
+    fun readPayloadTransferUpdate(
+        payloadId: Long,
+        bytesTransferred: Long,
+        totalBytes: Long,
+        status: Int
+    ) : List<Action> {
+        return buildList {
+            val direction = when {
+                incoming.payloads.containsKey(payloadId) -> Direction.In
+                outgoing.payloads.containsKey(payloadId) -> Direction.Out
+                else -> null
+            }
+
+            if (direction != null) {
+                add(Action.Local.Progress(direction, totalBytes, bytesTransferred))
+
+                if (direction == Direction.In && status == PayloadTransferUpdate.Status.SUCCESS) {
+                    val temporaryFile = requireNotNull(incoming.payloads.remove(payloadId))
+                    val fileEntry = requireNotNull(incoming.currentFile())
+
+                    saveDir?.let { saveDir ->
+                        add(Action.Local.Save(temporaryFile, saveDir, fileEntry.path, fileEntry.mime))
+                    }
+
+                    val response = serializer.encodeResponse(incoming.requestId, JsonSerializer.DONE)
+                    add(Action.Network.SendMessage(response))
+
+                    if (incoming.fileIndex == incoming.files.size - 1) {
+                        incoming.reset()
+                        add(Action.Local.Statistics(direction, incoming.statistics()))
+                        add(Action.Local.Progress(direction, 0, 0))
+                    }
+                }
+            }
+        }
+    }
+
+    fun savePayloadId(
+        direction: Direction,
+        payloadId: Long,
+        file: File
+    ) {
+        when (direction) {
+            Direction.In -> incoming.payloads[payloadId] = file
+            Direction.Out -> outgoing.payloads[payloadId] = file
+        }
     }
 }

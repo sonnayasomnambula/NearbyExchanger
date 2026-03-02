@@ -1,15 +1,20 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.text.format.Formatter
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.Payload
+import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,6 +28,7 @@ import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
+import java.io.File
 import java.io.IOException
 
 abstract class NearbyExchanger(
@@ -115,6 +121,7 @@ abstract class NearbyExchanger(
         private val contentResolver: ContentResolver,
         override val path: String = "",
         override val size: Long = 0,
+        override val mime: String = ""
     ) : TransferEngine.FileImpl() {
 
         fun openDescriptor(mode: String = "r"): ParcelFileDescriptor {
@@ -122,23 +129,18 @@ abstract class NearbyExchanger(
                 ?: throw IOException("Cannot open file descriptor for $uri")
         }
 
-        override fun save(destination: TransferEngine.File) {
-            val targetUri = (destination as TransferableFile).uri
-            createDirectories(targetUri, contentResolver)
-            moveTo(uri, targetUri, contentResolver)
+        override fun save(directory: TransferEngine.File, path: String, mime: String) {
+            val directoryUri = (directory as TransferableFile).uri
+            moveTo(uri, directoryUri, path, mime, contentResolver)
         }
 
-        override fun createChild(entry: JsonSerializer.FileEntry) : TransferEngine.File {
-            val uri = this.uri
-                .buildUpon()
-                .appendPath(entry.path)
-                .build()
-
+        override fun createFrom(entry: JsonSerializer.FileEntry) : TransferEngine.File {
             return TransferableFile(
-                uri,
+                Uri.EMPTY,
                 this.contentResolver,
                 entry.path,
-                entry.size
+                entry.size,
+                entry.mime
             )
         }
 
@@ -171,15 +173,19 @@ abstract class NearbyExchanger(
                         }
                     }
                     document.isFile -> {
-                        document.length().takeIf { it > 0 }?.let { size ->
+                        document.length().takeIf { it > 0 }?.let { fileSize ->
                             val fileName = document.name ?: "unknown"
-                            val relativePath = if (currentPath.isEmpty()) fileName else "$currentPath/$fileName"
+                            val relativePath = currentPath.ifEmpty { fileName }
+                            val mimeType = context.contentResolver.getType(document.uri) ?: "application/octet-stream"
                             fileList.add(
                                 TransferableFile(
                                     document.uri,
                                     context.contentResolver,
                                     relativePath,
-                                    size))
+                                    fileSize,
+                                    mimeType
+                                )
+                            )
                         }
                     }
                 }
@@ -202,43 +208,99 @@ abstract class NearbyExchanger(
                     descriptor.statSize
                 } ?: 0L
 
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+
                 return TransferableFile(
                     uri = uri,
                     contentResolver = contentResolver,
                     path = fileName,
-                    size = fileSize
+                    size = fileSize,
+                    mime = mimeType
                 )
             }
 
-            private fun createDirectories(uri: Uri, contentResolver: ContentResolver) {
-                val path = uri.path ?: return
-                val parts = path.split('/').filter { it.isNotEmpty() }
-                val builder = uri.buildUpon()
-                builder.path("")
+            private fun moveTo(
+                sourceUri: Uri,
+                directoryUri: Uri,
+                path: String,
+                mime: String,
+                contentResolver: ContentResolver
+            ) {
+                val fileName = path.substringAfterLast('/')
+                val subPath = path.substringBeforeLast('/',  "")
 
-                for (part in parts) {
-                    builder.appendPath(part)
-                    val dirUri = builder.build()
-
-                    try {
-                        contentResolver.openOutputStream(dirUri, "wt")?.close()
-                    } catch (e: Exception) {
-                        Log.w(LOG_TRACE,"Unable to create directory $dirUri", e)
-                    }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    moveToMediaStore(sourceUri, directoryUri, fileName, subPath, mime, contentResolver)
+                } else {
+                    moveToLegacy(sourceUri, directoryUri, fileName, subPath, contentResolver)
                 }
             }
 
-            private fun moveTo(sourceUri: Uri, destinationUri: Uri, contentResolver: ContentResolver) {
-                try {
-                    contentResolver.openInputStream(sourceUri)?.use { input ->
-                            contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
-                                    input.copyTo(output)
-                                    output.flush()
-                                } ?: throw IOException("Failed to open output stream for $destinationUri")
-                        } ?: throw IOException("Failed to open input stream for $sourceUri")
-                } finally {
-                    contentResolver.delete(sourceUri, null, null)
+            private fun moveToMediaStore(
+                sourceUri: Uri,
+                directoryUri: Uri,
+                fileName: String,
+                subPath: String,
+                mime: String,
+                contentResolver: ContentResolver
+            ) {
+                val relativePath = buildString {
+                    append(Environment.DIRECTORY_DOWNLOADS)
+                    if (subPath.isNotEmpty()) {
+                        append("/").append(subPath)
+                    }
                 }
+
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                }
+
+                val newUri = contentResolver.insert(directoryUri, values)
+                    ?: throw IOException("Failed to create destination file")
+
+                try {
+                    copyContent(sourceUri, newUri, contentResolver)
+                    contentResolver.delete(sourceUri, null, null)
+                } catch (e: Exception) {
+                    contentResolver.delete(newUri, null, null)
+                    throw e
+                }
+            }
+
+            private fun moveToLegacy(
+                sourceUri: Uri,
+                directoryUri: Uri,
+                fileName: String,
+                subPath: String,
+                contentResolver: ContentResolver
+            ) {
+                val destinationDir =
+                    File(directoryUri.path ?: throw IOException("Invalid destination path"))
+                val targetDir = if (subPath.isNotEmpty()) File(destinationDir, subPath) else destinationDir
+
+                if (!targetDir.exists() && !targetDir.mkdirs()) {
+                    throw IOException("Failed to create directory: $targetDir")
+                }
+
+                val targetFile = File(targetDir, fileName)
+                val targetUri = Uri.fromFile(targetFile)
+
+                copyContent(sourceUri, targetUri, contentResolver)
+                contentResolver.delete(sourceUri, null, null)
+            }
+
+            private fun copyContent(
+                sourceUri: Uri,
+                targetUri: Uri,
+                contentResolver: ContentResolver
+            ) {
+                contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                    contentResolver.openOutputStream(targetUri)?.use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    } ?: throw IOException("Failed to open destination stream")
+                } ?: throw IOException("Failed to open source stream")
             }
         }
     }
@@ -246,7 +308,8 @@ abstract class NearbyExchanger(
     protected inner class FileTransfer {
         private val engine = TransferEngine()
 
-        val device: RemoteDevice? = (_state.value.session as? SessionState.Connected)?.device
+        val device: RemoteDevice?
+            get() = (_state.value.session as? SessionState.Connected)?.device
 
         fun setSaveDir(uri: Uri?) {
             engine.saveDir = if (uri == null) null else TransferableFile(
@@ -277,7 +340,7 @@ abstract class NearbyExchanger(
                 }
                 Payload.Type.FILE -> {
                     payload.asFile()?.let { file ->
-                        readFile(file)
+                        readFile(file, payload.id)
                     }
                 }
                 else-> {}
@@ -289,7 +352,7 @@ abstract class NearbyExchanger(
             perform(actions)
         }
 
-        private fun readFile(file: Payload.File) {
+        private fun readFile(file: Payload.File, payloadId: Long) {
             val tempUri = requireNotNull(file.asUri()) {
                 "Received file without URI: $file"
             }
@@ -298,7 +361,7 @@ abstract class NearbyExchanger(
                 context.contentResolver
             )
 
-            val actions = engine.readFile(tempFile)
+            val actions = engine.readFile(tempFile, payloadId)
             perform(actions)
         }
 
@@ -307,10 +370,10 @@ abstract class NearbyExchanger(
                 when (action) {
                     is TransferEngine.Action.Network.SendFile -> performSendFile(action.file)
                     is TransferEngine.Action.Network.SendMessage -> performSendMessage(action.message)
-                    is TransferEngine.Action.Local.Save -> performSave(action.source, action.destination)
+                    is TransferEngine.Action.Local.Save -> performSave(action.source, action.directory, action.path, action.mime)
                     is TransferEngine.Action.Local.Notify -> performNotify(action.message)
                     is TransferEngine.Action.Local.Warning -> performWarning(action.message)
-                    is TransferEngine.Action.Local.Progress -> updateProgress(action.direction, action.progress)
+                    is TransferEngine.Action.Local.Progress -> updateProgress(action.direction, action.size, action.progress)
                     is TransferEngine.Action.Local.Statistics -> updateStatistics(action.direction, action.statistics)
                 }
             }
@@ -318,9 +381,12 @@ abstract class NearbyExchanger(
 
         private fun performSave(
             source: TransferEngine.File,
-            destination: TransferEngine.File
+            directory: TransferEngine.File,
+            path: String,
+            mime: String
         ) {
-            source.save(destination)
+            Log.d(LOG_TRACE, "save $path")
+            source.save(directory, path, mime)
         }
 
         private fun performSendFile(
@@ -328,7 +394,9 @@ abstract class NearbyExchanger(
         ) {
             device?.let { device ->
                 val descriptor = (file as TransferableFile).openDescriptor()
-                connectionsClient.sendPayload(device.endpointId, Payload.fromFile(descriptor))
+                val payload = Payload.fromFile(descriptor)
+                engine.savePayloadId(TransferEngine.Direction.Out, payload.id, file)
+                connectionsClient.sendPayload(device.endpointId, payload)
             }
         }
 
@@ -337,8 +405,8 @@ abstract class NearbyExchanger(
         ) {
             device?.let { device ->
                 val bytes = message.toByteArray(Charsets.UTF_8)
-                Log.d(LOG_TRACE, "send ${bytes.size} b to ${device.endpointId}")
-                connectionsClient.sendPayload(device.endpointId, Payload.fromBytes(bytes))
+                val payload = Payload.fromBytes(bytes)
+                connectionsClient.sendPayload(device.endpointId, payload)
             }
         }
 
@@ -356,9 +424,12 @@ abstract class NearbyExchanger(
 
         private fun updateProgress(
             direction: TransferEngine.Direction,
+            size: Long,
             progress: Long
         ) {
-            Log.d(LOG_TRACE, "[${direction.name}] $progress b sent")
+            val sizeString = Formatter.formatShortFileSize(context, size)
+            val progressString = Formatter.formatShortFileSize(context, progress)
+            Log.d(LOG_TRACE, "[${direction.name}] $progressString / $sizeString b")
         }
 
         private fun updateStatistics(
@@ -366,8 +437,20 @@ abstract class NearbyExchanger(
             statistics: TransferEngine.TransferStatistics
         ) {
             statistics.let {
-                Log.d(LOG_TRACE, "[${direction.name}] ${it.current} | ${it.currentBytes} / ${it.totalBytes} b | ${it.queue.size} left")
+                val totalSize = Formatter.formatShortFileSize(context, it.totalSize)
+                val totalProgress = Formatter.formatShortFileSize(context, it.totalProgress)
+                Log.d(LOG_TRACE, "[${direction.name}] ${it.current} | $totalProgress / $totalSize b | ${it.queue.size} left")
             }
+        }
+
+        fun readPayloadTransferUpdate(
+            payloadId: Long,
+            bytesTransferred: Long,
+            totalBytes: Long,
+            status: Int
+        ) {
+            val actions = engine.readPayloadTransferUpdate(payloadId, bytesTransferred, totalBytes, status)
+            perform(actions)
         }
     }
 

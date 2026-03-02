@@ -22,7 +22,8 @@ class JsonSerializer {
     @Serializable
     data class FileEntry(
         val path: String,
-        val size: Long
+        val size: Long,
+        val mime: String
     )
 
     @Serializable

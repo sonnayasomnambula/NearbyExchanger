@@ -174,8 +174,7 @@ class Discoverer(scope: CoroutineScope, context: Context)
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            // Обновление прогресса передачи
-            Log.d(LOG_TRACE, "onPayloadTransferUpdate from $endpointId, bytes: ${update.bytesTransferred}/${update.totalBytes}")
+            fileTransfer.readPayloadTransferUpdate(update.payloadId, update.bytesTransferred, update.totalBytes, update.status)
         }
     }
 

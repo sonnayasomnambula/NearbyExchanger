@@ -302,6 +302,7 @@ class MainScreenViewModel(
                         // nothing
                     }
                     is ExchangeEvent.EndpointDisconnected -> {
+                        _activityEffects.send(StopForegroundService)
                         _activityEffects.send(ShowDisconnectedAlert(event.device))
                     }
 

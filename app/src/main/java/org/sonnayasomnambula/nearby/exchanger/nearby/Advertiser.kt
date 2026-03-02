@@ -147,13 +147,11 @@ class Advertiser(scope: CoroutineScope, context: Context)
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            Log.d(LOG_TRACE, "onPayloadReceived from $endpointId, type: ${payload.type}")
             fileTransfer.readPayload(payload)
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            // Обновление прогресса передачи
-            Log.d(LOG_TRACE, "onPayloadTransferUpdate from $endpointId, bytes: ${update.bytesTransferred}/${update.totalBytes}")
+            fileTransfer.readPayloadTransferUpdate(update.payloadId, update.bytesTransferred, update.totalBytes, update.status)
         }
     }
 }

@@ -11,10 +11,11 @@ class TestStorage(val name: String) {
     class File(
         override val path: String = "",
         override val size: Long = 0,
+        override val mime: String = "",
     ) : TransferEngine.FileImpl() {
-        override fun save(destination: TransferEngine.File) {}
-        override fun createChild(entry: JsonSerializer.FileEntry): TransferEngine.File =
-            File(path + "/" + entry.path, entry.size)
+        override fun save(directory: TransferEngine.File, path: String, mime: String) {}
+        override fun createFrom(entry: JsonSerializer.FileEntry): TransferEngine.File =
+            File(entry.path, entry.size, entry.mime)
     }
 
     var files: MutableList<File> = mutableListOf()
@@ -33,7 +34,7 @@ class TestStorage(val name: String) {
 
             is TransferEngine.Action.Network.SendFile -> {
                 println("$name received file ${action.file.path}")
-                return engine.readFile(action.file)
+                return engine.readFile(action.file, payloadId)
             }
         }
     }
@@ -41,8 +42,14 @@ class TestStorage(val name: String) {
     fun applyLocal(action: TransferEngine.Action) :  List<TransferEngine.Action> {
         return when (action) {
             is TransferEngine.Action.Local.Save -> {
+                files.add(
+                    File(
+                        action.destination.path + "/" + action.path,
+                        action.source.size,
+                        action.mime
+                    )
+                )
                 println("$name saves file ${action.destination.path}")
-                files.add(action.destination as File)
                 return emptyList()
             }
             else -> emptyList()

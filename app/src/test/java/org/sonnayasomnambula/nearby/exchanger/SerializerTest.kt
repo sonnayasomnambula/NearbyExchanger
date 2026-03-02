@@ -6,7 +6,7 @@ import org.junit.Test
 
 import org.sonnayasomnambula.nearby.exchanger.nearby.JsonSerializer
 
-class FileManifestSerializerTest {
+class SerializerTest {
 
     private lateinit var serializer: JsonSerializer
 
@@ -19,9 +19,9 @@ class FileManifestSerializerTest {
     fun `serialize and deserialize manifest should preserve data`() {
 
         val files = listOf(
-            JsonSerializer.FileEntry("dir/doc.txt", 1024),
-            JsonSerializer.FileEntry("dir/subdir/photo.jpg", 2048),
-            JsonSerializer.FileEntry("dir/a/b/c/deep.txt", 512)
+            JsonSerializer.FileEntry("dir/doc.txt", 1024, "text/plain"),
+            JsonSerializer.FileEntry("dir/subdir/photo.jpg", 2048, "image/jpeg"),
+            JsonSerializer.FileEntry("dir/a/b/c/deep.txt", 512, "text/plain")
         )
 
         val requestId = 1
