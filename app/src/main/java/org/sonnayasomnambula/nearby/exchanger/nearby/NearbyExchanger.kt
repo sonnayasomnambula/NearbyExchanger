@@ -495,8 +495,6 @@ abstract class NearbyExchanger(
                     is TransferEngine.Action.Local.Warning -> performWarning(action.message)
                     is TransferEngine.Action.Local.Progress -> updateProgress(action.direction, action.size, action.progress)
                     is TransferEngine.Action.Local.Statistics -> updateStatistics(action.direction, action.statistics)
-                    is TransferEngine.Action.Local.Delete -> for (file in action.files) file.delete()
-
                 }
             }
         }

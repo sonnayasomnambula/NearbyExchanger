@@ -73,8 +73,6 @@ class TransferEngine {
         }
         sealed interface Local : Action {
             data class Save(val source: File, val directory: File, val path: String, val mime: String) : Local
-
-            data class Delete(val files: List<File>) : Local
             data class Notify(val message: String) : Local
             data class Warning(val message: String) : Local
             data class Progress(val direction: Direction, val size: Long, val progress: Long) : Local
@@ -134,6 +132,23 @@ class TransferEngine {
     }
 
     private fun handleResponse(response: JsonSerializer.Response) : List<Action> {
+        if (response.status == JsonSerializer.STOP) {
+            // TODO remove copy-paste
+
+            incoming.reset()
+            outgoing.reset()
+            incoming.payloads.clear()
+            outgoing.payloads.clear()
+
+            return listOf(
+                Action.Local.Progress(Direction.In, 0, 0),
+                Action.Local.Progress(Direction.Out, 0, 0),
+                Action.Local.Statistics(Direction.In, incoming.statistics()),
+                Action.Local.Statistics(Direction.Out, incoming.statistics())
+            )
+        }
+
+
         if (response.requestId != outgoing.requestId) {
             // skip
             outgoing.reset()
@@ -212,9 +227,8 @@ class TransferEngine {
     }
 
     private fun handleIndexRequest(request: JsonSerializer.IndexRequest) : List<Action> {
-        require(request.index < incoming.files.size) {
-            "invalid index request: ${request.index}/${incoming.files.size}"
-        }
+        if (request.index >= incoming.files.size)
+            return emptyList()
 
         incoming.requestId = request.requestId
         incoming.fileIndex = request.index
@@ -278,7 +292,6 @@ class TransferEngine {
     fun stopTransfers() : List<Action> {
 
         val stopRequest = serializer.encodeResponse(0, JsonSerializer.STOP)
-        val temporaryFiles = incoming.files
 
         incoming.reset()
         outgoing.reset()
@@ -288,7 +301,6 @@ class TransferEngine {
         return listOf(
             Action.Network.CancelPayloads((incoming.payloads.keys + outgoing.payloads.keys).toList()),
             Action.Network.SendMessage(stopRequest),
-            Action.Local.Delete(temporaryFiles),
             Action.Local.Progress(Direction.In, 0, 0),
             Action.Local.Progress(Direction.Out, 0, 0),
             Action.Local.Statistics(Direction.In, incoming.statistics()),
