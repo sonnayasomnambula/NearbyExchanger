@@ -59,7 +59,9 @@ data class TransferProgress(
 data class TransferState(
     val statistics: TransferStatistics = TransferStatistics(),
     val progress: TransferProgress = TransferProgress()
-)
+) {
+    fun transferred() : Long = statistics.totalProgress + progress.currentProgress
+}
 
 data class ExchangeState(
     val searching: SearchingMode = SearchingMode.Stopped,

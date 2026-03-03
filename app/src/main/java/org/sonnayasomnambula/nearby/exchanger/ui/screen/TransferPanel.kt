@@ -205,14 +205,14 @@ private fun TransferBlock(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TransferProgress(
-                    progress = if (state.statistics.totalSize > 0)
-                        state.statistics.totalProgress.toFloat() / state.statistics.totalSize
+                    progress = if (state.statistics.hasData)
+                        state.transferred().toFloat() / state.statistics.totalSize
                     else 0f,
                     modifier = Modifier.weight(1f)
                 )
 
                 TransferLabel(
-                    text = "${formatSize(state.statistics.totalProgress)} / ${formatSize(state.statistics.totalSize)}",
+                    text = "${formatSize(state.transferred())} / ${formatSize(state.statistics.totalSize)}",
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
