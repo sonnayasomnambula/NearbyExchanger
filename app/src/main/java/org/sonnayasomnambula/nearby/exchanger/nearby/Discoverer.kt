@@ -20,7 +20,6 @@ import org.sonnayasomnambula.nearby.exchanger.model.Role
 
 class Discoverer(scope: CoroutineScope, context: Context)
     : NearbyExchanger(Role.DISCOVERER, scope, context) {
-
     override fun start() {
         startDiscovery()
     }
@@ -36,9 +35,9 @@ class Discoverer(scope: CoroutineScope, context: Context)
             is ExchangeCommand.DisconnectEndpoint -> disconnectEndpoint(command.endpointId)
             is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
             is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
+            is ExchangeCommand.StopTransfers -> fileTransfer.stopTransfers()
         }
     }
-
     private fun startDiscovery() {
         setSearchingMode(SearchingMode.Stopped)
 

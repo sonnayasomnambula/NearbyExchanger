@@ -11,6 +11,7 @@ class TransferEngine {
 
         fun toFileEntry(): JsonSerializer.FileEntry
         fun save(directory: File, path: String, mime: String)
+        fun delete()
         fun createFrom(entry: JsonSerializer.FileEntry) : File
     }
 
@@ -68,9 +69,12 @@ class TransferEngine {
         sealed interface Network : Action {
             data class SendFile(val file: File) : Network
             data class SendMessage(val message: String) : Network
+            data class CancelPayloads(val payloads: List<Long>) : Network
         }
         sealed interface Local : Action {
             data class Save(val source: File, val directory: File, val path: String, val mime: String) : Local
+
+            data class Delete(val files: List<File>) : Local
             data class Notify(val message: String) : Local
             data class Warning(val message: String) : Local
             data class Progress(val direction: Direction, val size: Long, val progress: Long) : Local
@@ -269,5 +273,26 @@ class TransferEngine {
             Direction.In -> incoming.payloads[payloadId] = file
             Direction.Out -> outgoing.payloads[payloadId] = file
         }
+    }
+
+    fun stopTransfers() : List<Action> {
+
+        val stopRequest = serializer.encodeResponse(0, JsonSerializer.STOP)
+        val temporaryFiles = incoming.files
+
+        incoming.reset()
+        outgoing.reset()
+        incoming.payloads.clear()
+        outgoing.payloads.clear()
+
+        return listOf(
+            Action.Network.CancelPayloads((incoming.payloads.keys + outgoing.payloads.keys).toList()),
+            Action.Network.SendMessage(stopRequest),
+            Action.Local.Delete(temporaryFiles),
+            Action.Local.Progress(Direction.In, 0, 0),
+            Action.Local.Progress(Direction.Out, 0, 0),
+            Action.Local.Statistics(Direction.In, incoming.statistics()),
+            Action.Local.Statistics(Direction.Out, incoming.statistics())
+        )
     }
 }

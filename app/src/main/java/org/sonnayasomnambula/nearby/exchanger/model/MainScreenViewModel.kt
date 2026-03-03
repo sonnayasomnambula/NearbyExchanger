@@ -27,6 +27,7 @@ import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeEvent
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeState
 import org.sonnayasomnambula.nearby.exchanger.nearby.SearchingMode
 import org.sonnayasomnambula.nearby.exchanger.nearby.SessionState
+import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
 
 enum class Role { ADVERTISER, DISCOVERER }
 
@@ -51,6 +52,8 @@ data class MainScreenState (
     val currentDir: Uri? = null,
     val statusText: String = "",
     val devices: List<RemoteDevice> = emptyList(),
+    val incoming: TransferState = TransferState(),
+    val outgoing: TransferState = TransferState()
 )
 
 // activity/composable => model
@@ -68,6 +71,7 @@ sealed interface MainScreenEvent {
     data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
     data class PermissionsResult(val granted: Boolean) : MainScreenEvent
     data class DeviceClicked(val device: RemoteDevice) : MainScreenEvent
+    data object StopTransfers: MainScreenEvent
 }
 
 // model => activity
@@ -193,6 +197,7 @@ class MainScreenViewModel(
             is MainScreenEvent.DirectoryAccessChecked -> onDirectoryAccessChecked(event.uri, event.hasAccess)
             is MainScreenEvent.PermissionsResult -> onPermissionResult(granted = event.granted)
             is MainScreenEvent.DeviceClicked -> onDeviceClicked(event.device)
+            is MainScreenEvent.StopTransfers -> exchanger?.execute(ExchangeCommand.StopTransfers)
         }
     }
 
@@ -289,7 +294,9 @@ class MainScreenViewModel(
                         connectionState = determineConnectionState(exchangerState),
                         currentRole = exchanger.role(),
                         devices = exchangerState.devices,
-                        statusText = determineStatusText(exchangerState)
+                        statusText = determineStatusText(exchangerState),
+                        incoming = exchangerState.incoming,
+                        outgoing = exchangerState.outgoing
                     )
                 }
             }

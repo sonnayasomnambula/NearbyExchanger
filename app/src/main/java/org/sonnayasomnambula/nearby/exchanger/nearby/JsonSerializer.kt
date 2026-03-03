@@ -9,6 +9,7 @@ class JsonSerializer {
     companion object {
         const val READY = "ready"
         const val DONE = "done"
+        const val STOP = "stop"
         const val NO_DIR = "no dir"
         const val NO_SPACE = "no space"
     }

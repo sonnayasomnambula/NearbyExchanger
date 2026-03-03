@@ -34,7 +34,7 @@ class TestStorage(val name: String) {
 
             is TransferEngine.Action.Network.SendFile -> {
                 println("$name received file ${action.file.path}")
-                return engine.readFile(action.file, payloadId)
+                return engine.readFile(action.file, 1)
             }
         }
     }
@@ -44,12 +44,12 @@ class TestStorage(val name: String) {
             is TransferEngine.Action.Local.Save -> {
                 files.add(
                     File(
-                        action.destination.path + "/" + action.path,
+                        action.directory.path + "/" + action.path,
                         action.source.size,
                         action.mime
                     )
                 )
-                println("$name saves file ${action.destination.path}")
+                println("$name saves file ${action.directory.path}")
                 return emptyList()
             }
             else -> emptyList()

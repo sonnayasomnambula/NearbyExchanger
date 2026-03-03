@@ -1,6 +1,7 @@
 package org.sonnayasomnambula.nearby.exchanger.ui.screen
 
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.SaveDir
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DirectoryList(
     saveDirs: List<SaveDir>,
@@ -75,7 +77,7 @@ fun DirectoryList(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         )
     ) {
         Column(

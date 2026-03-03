@@ -30,9 +30,11 @@ class Advertiser(scope: CoroutineScope, context: Context)
 
     override fun execute(command: ExchangeCommand) {
         when (command) {
-            is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
+            is ExchangeCommand.ConnectEndpoint -> {}
+            is ExchangeCommand.DisconnectEndpoint -> {}
             is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
-            else -> {}
+            is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
+            is ExchangeCommand.StopTransfers -> fileTransfer.stopTransfers()
         }
     }
 

@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -37,6 +41,9 @@ import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 import org.sonnayasomnambula.nearby.exchanger.model.correspondingRole
+import org.sonnayasomnambula.nearby.exchanger.nearby.TransferProgress
+import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
+import org.sonnayasomnambula.nearby.exchanger.nearby.TransferStatistics
 
 @Composable
 fun ConnectionState.getDisplayText(): String {
@@ -199,6 +206,21 @@ fun BigPanel(
     when (state.connectionState) {
         ConnectionState.DISCONNECTED -> {
             StaticText(stringResource(R.string.starting_hint), modifier)
+//            TransferPanel(
+//                incoming = TransferState(
+//                    TransferStatistics(
+//                        queue = listOf("music/02.mp3", "music/03.mp3"),
+//                        current = "music/01.mp3",
+//                        totalSize = 54,
+//                        totalProgress = 4
+//                    ),
+//                    TransferProgress(12, 4)
+//
+//                ),
+//                outgoing = state.outgoing,
+//                onStop = { onEvent(MainScreenEvent.StopTransfers) },
+//                modifier = modifier
+//            )
         }
         ConnectionState.ADVERTISING,
         ConnectionState.DISCOVERING-> {
@@ -210,7 +232,16 @@ fun BigPanel(
                 modifier)
         }
         ConnectionState.CONNECTED -> {
-            DirectoryList(state.saveDirs, state.currentDir, onEvent, modifier)
+            if (state.hasTransfers) {
+                TransferPanel(
+                    incoming = state.incoming,
+                    outgoing = state.outgoing,
+                    onStop = { onEvent(MainScreenEvent.StopTransfers) },
+                    modifier = modifier
+                )
+            } else {
+                DirectoryList(state.saveDirs, state.currentDir, onEvent, modifier)
+            }
         }
         ConnectionState.ERROR -> {
             StaticText("", modifier)
@@ -223,16 +254,26 @@ private fun StaticText(
     text: String,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center,
+    Card(
+        modifier = modifier.fillMaxSize(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

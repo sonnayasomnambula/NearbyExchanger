@@ -44,9 +44,28 @@ sealed class SessionState {
     ) : SessionState()
 }
 
+data class TransferStatistics(
+    val queue: List<String> = emptyList(),
+    val current: String = "",
+    val totalSize: Long = 0,
+    val totalProgress: Long = 0,
+)
+
+data class TransferProgress(
+    val currentSize: Long = 0,
+    val currentProgress: Long = 0
+)
+
+data class TransferState(
+    val statistics: TransferStatistics = TransferStatistics(),
+    val progress: TransferProgress = TransferProgress()
+)
+
 data class ExchangeState(
     val searching: SearchingMode = SearchingMode.Stopped,
-    val session: SessionState = SessionState.None()
+    val session: SessionState = SessionState.None(),
+    val incoming: TransferState = TransferState(),
+    val outgoing: TransferState = TransferState()
 )
 
 sealed class ExchangeEvent {
@@ -60,6 +79,7 @@ sealed class ExchangeCommand {
     data class DisconnectEndpoint(val endpointId: String) : ExchangeCommand()
     data class SendFile(val uri: Uri) : ExchangeCommand()
     data class SendDirectory(val uri: Uri) : ExchangeCommand()
+    data object StopTransfers : ExchangeCommand()
 }
 
 interface Exchanger {
