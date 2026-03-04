@@ -25,12 +25,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
+import org.sonnayasomnambula.nearby.exchanger.app.CrashDumper
 import org.sonnayasomnambula.nearby.exchanger.app.MyApplication
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModelFactory
-
 
 import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
 
@@ -151,39 +151,45 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.activityEffects.collect { effect ->
                     Log.d(LOG_TRACE, "activity: effect ${effect.toString()}")
-                    when (effect) {
-                        is MainScreenEffect.ShowDisconnectedAlert -> {
-                            val text = getString(R.string.device_disconnected, effect.device.name)
-                            Toast.makeText(
-                                this@MainActivity,
-                                text,
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
+                    try {
+                        when (effect) {
+                            is MainScreenEffect.ShowDisconnectedAlert -> {
+                                val text =
+                                    getString(R.string.device_disconnected, effect.device.name)
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    text,
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
 
-                        is MainScreenEffect.CheckDirectoryAccess -> {
-                            checkDirectoryAccess(effect.uri)
-                        }
+                            is MainScreenEffect.CheckDirectoryAccess -> {
+                                checkDirectoryAccess(effect.uri)
+                            }
 
-                        is MainScreenEffect.RequestPermissions -> {
-                            checkPermissions(effect.permissions)
-                        }
+                            is MainScreenEffect.RequestPermissions -> {
+                                checkPermissions(effect.permissions)
+                            }
 
-                        is MainScreenEffect.StartForegroundService -> {
-                            ExchangeService.start(effect.role, this@MainActivity)
-                        }
+                            is MainScreenEffect.StartForegroundService -> {
+                                ExchangeService.start(effect.role, this@MainActivity)
+                            }
 
-                        is MainScreenEffect.StopForegroundService -> {
-                            ExchangeService.stop(this@MainActivity)
-                        }
+                            is MainScreenEffect.StopForegroundService -> {
+                                ExchangeService.stop(this@MainActivity)
+                            }
 
-                        is MainScreenEffect.PickFile -> {
-                            picker.pickFile(effect.readOnly)
-                        }
+                            is MainScreenEffect.PickFile -> {
+                                picker.pickFile(effect.readOnly)
+                            }
 
-                        is MainScreenEffect.PickDirectory -> {
-                            picker.pickDirectory(effect.readOnly)
+                            is MainScreenEffect.PickDirectory -> {
+                                picker.pickDirectory(effect.readOnly)
+                            }
                         }
+                    } catch (e: Exception) {
+                        val crashDumper = CrashDumper(this@MainActivity)
+                        crashDumper.save(e, "Effect: ${effect::class.simpleName}")
                     }
                 }
             }

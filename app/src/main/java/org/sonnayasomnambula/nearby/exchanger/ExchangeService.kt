@@ -21,6 +21,8 @@ import org.sonnayasomnambula.nearby.exchanger.model.Role
 import org.sonnayasomnambula.nearby.exchanger.nearby.Advertiser
 import org.sonnayasomnambula.nearby.exchanger.nearby.Discoverer
 import org.sonnayasomnambula.nearby.exchanger.nearby.Exchanger
+import org.sonnayasomnambula.nearby.exchanger.nearby.NotificationChannels
+import org.sonnayasomnambula.nearby.exchanger.nearby.NotificationIds
 
 class ExchangeService : Service() {
 
@@ -41,9 +43,6 @@ class ExchangeService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     companion object {
-        private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "advertising_service_channel"
-
         private const val ACTION_START = "action_start"
         private const val ACTION_STOP = "action_stop"
 
@@ -81,7 +80,7 @@ class ExchangeService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, NotificationChannels.SERVICE)
             .setContentTitle("Advertising Service")
             .setContentText("Service is running in background")
             .setSmallIcon(R.drawable.ic_dialog_info) // Замените на свою иконку
@@ -94,7 +93,7 @@ class ExchangeService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
+                NotificationChannels.SERVICE,
                 "Advertising Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
@@ -111,12 +110,12 @@ class ExchangeService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
-                    NOTIFICATION_ID,
+                    NotificationIds.SERVICE,
                     createNotification(),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
                 )
             } else {
-                startForeground(NOTIFICATION_ID, createNotification())
+                startForeground(NotificationIds.SERVICE, createNotification())
             }
         } /*else { // TODO
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

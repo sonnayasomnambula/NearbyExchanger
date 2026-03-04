@@ -24,4 +24,8 @@
     <string name="remove_directory_text">Are you sure you want to remove this directory from the list?</string>
     <string name="operation_not_allowed">Operation not allowed</string>
     <string name="device_disconnected">%1$s disconnected</string>
+    <string name="critical_error">Critical error. Stacktrace saved.</string>
+    <string name="tap_to_see_stacktrace">Tap to see stacktrace</string>
+    <string name="error_message">Error: %1$s</string>
+    <string name="crash_reports">Crash Reports</string>
 </resources>
