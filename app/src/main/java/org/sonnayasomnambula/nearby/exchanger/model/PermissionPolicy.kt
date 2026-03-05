@@ -19,6 +19,7 @@ class AndroidPermissionPolicy : PermissionPolicy {
 
         when {
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> {
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
             else -> {

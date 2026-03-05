@@ -20,6 +20,15 @@
     <uses-permission android:minSdkVersion="31" android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:minSdkVersion="33" android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+        </intent>
+    </queries>
+
     <application
         android:name=".app.MyApplication"
         android:allowBackup="true"

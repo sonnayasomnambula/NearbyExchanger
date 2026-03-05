@@ -28,4 +28,5 @@
     <string name="tap_to_see_stacktrace">Tap to see stacktrace</string>
     <string name="error_message">Error: %1$s</string>
     <string name="crash_reports">Crash Reports</string>
+    <string name="not_supported_install_file_manager">%1$s not supported. Install a file manager (e.g. Google Files)</string>
 </resources>

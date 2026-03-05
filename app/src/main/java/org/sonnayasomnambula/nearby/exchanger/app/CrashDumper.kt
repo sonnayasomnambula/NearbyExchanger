@@ -128,18 +128,6 @@ class CrashDumper(
         }
     }
 
-    private fun showToast(throwable: Throwable) {
-        val text = throwable.message?.let { message ->
-            context.getString(R.string.error_message, message)
-        } ?: context.getString(R.string.critical_error)
-
-        Toast.makeText(
-            context,
-            text,
-            Toast.LENGTH_LONG
-        ).show()
-    }
-
     @SuppressLint("MissingPermission")
     private fun showNotification(throwable: Throwable, file: File?) {
         if (Notificator.hasPermission(context)) {
@@ -153,7 +141,7 @@ class CrashDumper(
             }
             notificator?.showNotification(throwable, file)
         } else {
-            showToast(throwable)
+            Toaster.show(throwable, context)
         }
     }
 }

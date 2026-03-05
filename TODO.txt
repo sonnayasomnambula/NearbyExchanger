@@ -1,3 +1,5 @@
+[!] Cannot start advertise on Android 10: error 8007 STATUS_RADIO_ERROR
+
 [*] ConnectionState: Merge ADVERTISING and DISCOVERING into SEARCHING (detect by role)
 
 [+] ConnectionState: Add CONNECTING state when role is already selected but advertise/discovery hasn't started yet - for UI

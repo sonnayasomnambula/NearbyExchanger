@@ -27,6 +27,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.app.CrashDumper
 import org.sonnayasomnambula.nearby.exchanger.app.MyApplication
+import org.sonnayasomnambula.nearby.exchanger.app.Toaster
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
@@ -47,40 +48,69 @@ fun __func__(): String {
 class MainActivity : ComponentActivity() {
     private val LOG_TAG = "org.sonnayasomnambula.nearby.exchanger.MainActivity"
 
+    private val crashDumper = CrashDumper(this)
+
     private val viewModel: MainScreenViewModel by viewModels() {
         MainScreenViewModelFactory(application as MyApplication)
     }
 
     private inner class DocumentPicker {
+        private val LOG_TAG = "DocumentPicker"
         private var currentReadOnly: Boolean = false
 
         private val directoryPicker =
             registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
                 uri?.let { uri ->
-                    requestPermissions(uri)
-                    viewModel.directoryPicked(
-                        uri = uri,
-                        name = uri.lastPathSegment ?: "Folder"
-                    )
+                    try {
+                        requestPermissions(uri)
+                        viewModel.directoryPicked(
+                            uri = uri,
+                            name = uri.lastPathSegment ?: "Folder"
+                        )
+                    } catch (throwable: Exception) {
+                        crashDumper.save(throwable, "Action: pick directory")
+                    }
                 }
             }
 
         private val filePicker =
             registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                 uri?.let { uri ->
-                    requestPermissions(uri)
-                    viewModel.filePicked(uri)
+                    try {
+                        requestPermissions(uri)
+                        viewModel.filePicked(uri)
+                    } catch (throwable: Exception) {
+                        crashDumper.save(throwable, "Action: pick file")
+                    }
                 }
             }
 
-        public fun pickDirectory(readOnly: Boolean) {
+        fun pickDirectory(readOnly: Boolean) {
             currentReadOnly = readOnly
-            directoryPicker.launch(null)
+
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            if (intent.resolveActivity(packageManager) != null) {
+                directoryPicker.launch(null)
+            } else {
+                val text = getString(R.string.not_supported_install_file_manager, intent.action)
+                Toaster.show(text, this@MainActivity)
+            }
         }
 
-        public fun pickFile(readOnly: Boolean) {
+        fun pickFile(readOnly: Boolean) {
             currentReadOnly = readOnly
-            filePicker.launch(arrayOf("*/*"))
+
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                type = "*/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+            }
+
+            if (intent.resolveActivity(packageManager) != null) {
+                filePicker.launch(arrayOf("*/*"))
+            } else {
+                val text = getString(R.string.not_supported_install_file_manager, intent.action)
+                Toaster.show(text, this@MainActivity)
+            }
         }
 
         private fun requestPermissions(uri: Uri) {
@@ -91,7 +121,17 @@ class MainActivity : ComponentActivity() {
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             }
 
-            contentResolver.takePersistableUriPermission(uri, flags)
+            try {
+                contentResolver.takePersistableUriPermission(uri, flags)
+            } catch (se: SecurityException) {
+                Log.w(LOG_TAG, "Cannot take persistable permission", se)
+
+                try {
+                    grantUriPermission(packageName, uri, flags)
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "Failed to grant permission", e)
+                }
+            }
         }
     }
 
@@ -106,11 +146,7 @@ class MainActivity : ComponentActivity() {
         viewModel.onScreenEvent(MainScreenEvent.PermissionsResult(allGranted))
 
         if (!allGranted) {
-            Toast.makeText(
-                this@MainActivity,
-                getString(R.string.operation_not_allowed),
-                Toast.LENGTH_LONG
-            ).show()
+            Toaster.show(getString(R.string.operation_not_allowed), this@MainActivity)
         }
     }
 
@@ -188,7 +224,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } catch (e: Exception) {
-                        val crashDumper = CrashDumper(this@MainActivity)
                         crashDumper.save(e, "Effect: ${effect::class.simpleName}")
                     }
                 }
