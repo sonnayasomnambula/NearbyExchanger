@@ -39,7 +39,7 @@ class Advertiser(scope: CoroutineScope, context: Context)
     }
 
     private fun startAdvertising() {
-        setSearchingMode(SearchingMode.Stopped)
+        setSearchingMode(SearchingMode.Starting)
 
         val advertisingOptions = AdvertisingOptions.Builder()
             .setStrategy(STRATEGY)

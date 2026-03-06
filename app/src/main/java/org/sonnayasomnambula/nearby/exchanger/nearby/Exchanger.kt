@@ -9,6 +9,7 @@ import org.sonnayasomnambula.nearby.exchanger.model.Role
 /// Advertising / discovery state
 sealed class SearchingMode {
     object Stopped : SearchingMode()
+    object Starting : SearchingMode()
     data class Running(
         val role: Role
     ) : SearchingMode()

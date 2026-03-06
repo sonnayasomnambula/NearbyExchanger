@@ -39,7 +39,7 @@ class Discoverer(scope: CoroutineScope, context: Context)
         }
     }
     private fun startDiscovery() {
-        setSearchingMode(SearchingMode.Stopped)
+        setSearchingMode(SearchingMode.Starting)
 
         val discoveryOptions = DiscoveryOptions.Builder()
             .setStrategy(STRATEGY)

@@ -2,8 +2,9 @@
     <string name="app_name">NearbyExchanger</string>
     <string name="title_activity_main">MainActivity</string>
     <string name="connection_state_not_connected">Not connected</string>
-    <string name="connection_state_advertising">Advertising…</string>
-    <string name="connection_state_discovering">Discovering…</string>
+    <string name="connection_state_starting">Starting…</string>
+    <string name="connection_state_advertising">Advertising</string>
+    <string name="connection_state_discovering">Discovering</string>
     <string name="connection_state_connected">Connected</string>
     <string name="connection_state_error">Error</string>
     <string name="device_status_disconnected">Disconnected</string>

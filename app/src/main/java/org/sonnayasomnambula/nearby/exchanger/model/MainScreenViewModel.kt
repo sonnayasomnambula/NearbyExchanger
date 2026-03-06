@@ -31,7 +31,7 @@ import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
 
 enum class Role { ADVERTISER, DISCOVERER }
 
-enum class ConnectionState { DISCONNECTED, SEARCHING, CONNECTED, ERROR }
+enum class ConnectionState { DISCONNECTED, STARTING, SEARCHING, CONNECTED, ERROR }
 
 data class SaveDir(
     val name: String,
@@ -236,9 +236,9 @@ class MainScreenViewModel(
     }
 
     private fun determineConnectionState(exchangerState: ExchangeState): ConnectionState {
-        return when (val searching = exchangerState.searching) {
+        return when (exchangerState.searching) {
             is SearchingMode.Failed -> ConnectionState.ERROR
-
+            is SearchingMode.Starting -> ConnectionState.STARTING
             is SearchingMode.Running -> {
                 ConnectionState.SEARCHING
             }
@@ -467,6 +467,7 @@ class MainScreenViewModel(
 
     private fun onRoleSelected(role: Role) {
         viewModelScope.launch {
+            _screenState.update { it.copy(connectionState = ConnectionState.STARTING) }
             pendingAction = PendingAction.StartService(role)
             val permissions = permissionPolicy.permissionsFor(role)
             _activityEffects.send(MainScreenEffect.RequestPermissions(permissions))

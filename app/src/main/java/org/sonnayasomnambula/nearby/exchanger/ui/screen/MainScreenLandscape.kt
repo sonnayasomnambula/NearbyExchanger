@@ -69,7 +69,7 @@ fun MainScreenLandscape(
 
                     ActionButton(
                         stringResource(R.string.disconnect_label),
-                        state.connectionState != ConnectionState.DISCONNECTED
+                        state.connectionState == ConnectionState.SEARCHING || state.connectionState == ConnectionState.CONNECTED
                     ) {
                         onEvent(MainScreenEvent.DisconnectClicked)
                     }

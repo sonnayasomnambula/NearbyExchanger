@@ -1,7 +1,5 @@
 [!] Cannot start advertise on Android 10: error 8007 STATUS_RADIO_ERROR
 
-[+] ConnectionState: Add CONNECTING state when role is already selected but advertise/discovery hasn't started yet - for UI
-
 [*] Show progress in notification
 
 [+] Create simple notification instead foreground service notification on old devices

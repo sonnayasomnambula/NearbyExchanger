@@ -45,6 +45,7 @@ import org.sonnayasomnambula.nearby.exchanger.model.Role
 fun ConnectionState.getDisplayText(role: Role?): String {
     return when (this) {
         ConnectionState.DISCONNECTED -> stringResource(R.string.connection_state_not_connected)
+        ConnectionState.STARTING -> stringResource(R.string.connection_state_starting)
         ConnectionState.SEARCHING -> when (role) {
             Role.ADVERTISER -> stringResource(R.string.connection_state_advertising)
             Role.DISCOVERER -> stringResource(R.string.connection_state_discovering)
@@ -106,7 +107,7 @@ fun RoleSelectorRow(
 
         RadioButton(
             enabled = state.connectionState == ConnectionState.DISCONNECTED,
-            selected = state.connectionState == ConnectionState.SEARCHING && state.currentRole == role,
+            selected = (state.connectionState == ConnectionState.STARTING || state.connectionState == ConnectionState.SEARCHING) && state.currentRole == role,
             onClick = {
                 onEvent(MainScreenEvent.RoleSelected(role))
             }
@@ -221,6 +222,8 @@ fun BigPanel(
 //                modifier = modifier
 //            )
         }
+        ConnectionState.STARTING ->
+            StaticText(stringResource(R.string.connection_state_starting), modifier)
         ConnectionState.SEARCHING-> {
             DevicesList(
                 state.devices,
