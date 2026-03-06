@@ -61,8 +61,8 @@ fun MainScreenLandscape(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        RoleSelectorRow(Role.ADVERTISER, state, onEvent, Modifier.fillMaxWidth())
-                        RoleSelectorRow(Role.DISCOVERER, state, onEvent, Modifier.fillMaxWidth())
+                        RoleSelectorRow(Role.ADVERTISER, state, onEvent)
+                        RoleSelectorRow(Role.DISCOVERER, state, onEvent)
                     }
 
                     SendRow(state, onEvent)

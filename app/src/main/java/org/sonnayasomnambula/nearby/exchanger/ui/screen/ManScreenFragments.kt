@@ -115,7 +115,6 @@ fun RoleSelectorRow(
         Text(
             text = stringResource(textResourceId),
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -172,7 +171,7 @@ fun SendRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.End
     ) {
         ActionButton(
             Icons.AutoMirrored.Filled.InsertDriveFile,

@@ -46,10 +46,10 @@ fun MainScreenPortrait(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                horizontalArrangement = Arrangement.Start
             ) {
-                RoleSelectorRow(Role.ADVERTISER, state, onEvent, Modifier.weight(1f))
-                RoleSelectorRow(Role.DISCOVERER, state, onEvent, Modifier.weight(1f))
+                RoleSelectorRow(Role.ADVERTISER, state, onEvent)
+                RoleSelectorRow(Role.DISCOVERER, state, onEvent)
             }
 
             SendRow(state, onEvent)
