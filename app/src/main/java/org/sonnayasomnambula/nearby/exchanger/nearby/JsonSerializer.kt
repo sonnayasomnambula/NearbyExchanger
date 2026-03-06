@@ -1,10 +1,11 @@
 package org.sonnayasomnambula.nearby.exchanger.nearby
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 
-class JsonSerializer {
+class JsonSerializer(prettyPrint: Boolean = false) {
 
     companion object {
         const val READY = "ready"
@@ -14,11 +15,20 @@ class JsonSerializer {
         const val NO_SPACE = "no space"
     }
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = true
-        prettyPrintIndent = "  "
+    object JsonFactory {
+        @OptIn(ExperimentalSerializationApi::class)
+        fun create(prettyPrint: Boolean = false): Json {
+            return Json {
+                ignoreUnknownKeys = true
+                this.prettyPrint = prettyPrint
+                if (prettyPrint) {
+                    prettyPrintIndent = "  "
+                }
+            }
+        }
     }
+
+    private val json = JsonFactory.create(prettyPrint)
 
     @Serializable
     data class FileEntry(

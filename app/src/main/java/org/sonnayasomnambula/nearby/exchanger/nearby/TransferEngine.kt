@@ -2,7 +2,7 @@ package org.sonnayasomnambula.nearby.exchanger.nearby
 
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 
-class TransferEngine {
+class TransferEngine(prettyPrint: Boolean = false) {
     enum class Direction { In, Out }
     interface File {
         val path: String
@@ -85,7 +85,7 @@ class TransferEngine {
     private var outgoing = Session()
     private var incoming = Session()
 
-    private val serializer = JsonSerializer()
+    private val serializer = JsonSerializer(prettyPrint)
 
     fun send(files: List<File>) : List<Action> {
         if (outgoing.fileIndex != -1) {

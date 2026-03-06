@@ -12,7 +12,7 @@ class SerializerTest {
 
     @Before
     fun setUp() {
-        serializer = JsonSerializer()
+        serializer = JsonSerializer(prettyPrint = true)
     }
 
     @Test
@@ -26,7 +26,6 @@ class SerializerTest {
 
         val requestId = 1
         val jsonString = serializer.encodeList(requestId, files)
-        println("Generated JSON: $jsonString")
 
         val deserialized = requireNotNull(serializer.decodeList(jsonString))
         assertEquals(requestId, deserialized.requestId)

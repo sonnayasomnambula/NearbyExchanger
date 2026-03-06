@@ -1,5 +1,6 @@
 package org.sonnayasomnambula.nearby.exchanger
 
+import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -14,12 +15,13 @@ class TestStorage(val name: String) {
         override val mime: String = "",
     ) : TransferEngine.FileImpl() {
         override fun save(directory: TransferEngine.File, path: String, mime: String) {}
+        override fun delete() {}
         override fun createFrom(entry: JsonSerializer.FileEntry): TransferEngine.File =
             File(entry.path, entry.size, entry.mime)
     }
 
     var files: MutableList<File> = mutableListOf()
-    val engine = TransferEngine()
+    val engine = TransferEngine(prettyPrint = true)
 
     init {
         engine.saveDir = File("Downloads", 0)
@@ -34,7 +36,21 @@ class TestStorage(val name: String) {
 
             is TransferEngine.Action.Network.SendFile -> {
                 println("$name received file ${action.file.path}")
-                return engine.readFile(action.file, 1)
+
+                val payloadId = 42L;
+
+                return engine.readFile(action.file, payloadId) +
+                    engine.readPayloadTransferUpdate(
+                        payloadId,
+                        action.file.size,
+                        action.file.size,
+                        PayloadTransferUpdate.Status.SUCCESS
+                    )
+            }
+
+            is TransferEngine.Action.Network.CancelPayloads -> {
+                println("$name received cancellation")
+                return engine.stopTransfers()
             }
         }
     }
