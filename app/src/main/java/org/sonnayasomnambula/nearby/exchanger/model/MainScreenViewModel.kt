@@ -31,14 +31,7 @@ import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
 
 enum class Role { ADVERTISER, DISCOVERER }
 
-enum class ConnectionState { DISCONNECTED, ADVERTISING, DISCOVERING, CONNECTED, ERROR }
-
-val ConnectionState.correspondingRole: Role?
-    get() = when (this) {
-        ConnectionState.ADVERTISING -> Role.ADVERTISER
-        ConnectionState.DISCOVERING -> Role.DISCOVERER
-        else -> null
-    }
+enum class ConnectionState { DISCONNECTED, SEARCHING, CONNECTED, ERROR }
 
 data class SaveDir(
     val name: String,
@@ -247,12 +240,9 @@ class MainScreenViewModel(
             is SearchingMode.Failed -> ConnectionState.ERROR
 
             is SearchingMode.Running -> {
-                when (searching.role) {
-                    Role.ADVERTISER -> ConnectionState.ADVERTISING
-                    Role.DISCOVERER -> ConnectionState.DISCOVERING
-                }
+                ConnectionState.SEARCHING
             }
-            else -> {
+            is SearchingMode.Stopped -> {
                 when (exchangerState.session) {
                     is SessionState.Connected -> ConnectionState.CONNECTED
                     is SessionState.None -> ConnectionState.DISCONNECTED

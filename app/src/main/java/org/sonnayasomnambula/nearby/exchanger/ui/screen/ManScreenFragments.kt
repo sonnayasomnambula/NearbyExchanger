@@ -40,17 +40,16 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
-import org.sonnayasomnambula.nearby.exchanger.model.correspondingRole
-import org.sonnayasomnambula.nearby.exchanger.nearby.TransferProgress
-import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
-import org.sonnayasomnambula.nearby.exchanger.nearby.TransferStatistics
 
 @Composable
-fun ConnectionState.getDisplayText(): String {
+fun ConnectionState.getDisplayText(role: Role?): String {
     return when (this) {
         ConnectionState.DISCONNECTED -> stringResource(R.string.connection_state_not_connected)
-        ConnectionState.ADVERTISING -> stringResource(R.string.connection_state_advertising)
-        ConnectionState.DISCOVERING -> stringResource(R.string.connection_state_discovering)
+        ConnectionState.SEARCHING -> when (role) {
+            Role.ADVERTISER -> stringResource(R.string.connection_state_advertising)
+            Role.DISCOVERER -> stringResource(R.string.connection_state_discovering)
+            null -> ""
+        }
         ConnectionState.CONNECTED -> stringResource(R.string.connection_state_connected)
         ConnectionState.ERROR -> stringResource(R.string.connection_state_error)
     }
@@ -76,9 +75,9 @@ fun RemoteDevice.ConnectionState.getColor(): Color {
 }
 
 @Composable
-fun ConnectionStateText(connectionState: ConnectionState) {
+fun ConnectionStateText(connectionState: ConnectionState, role: Role?) {
     Text(
-        text = connectionState.getDisplayText(),
+        text = connectionState.getDisplayText(role),
         fontSize = 18.sp,
         fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.onSurface,
@@ -107,7 +106,7 @@ fun RoleSelectorRow(
 
         RadioButton(
             enabled = state.connectionState == ConnectionState.DISCONNECTED,
-            selected = state.connectionState.correspondingRole == role,
+            selected = state.connectionState == ConnectionState.SEARCHING && state.currentRole == role,
             onClick = {
                 onEvent(MainScreenEvent.RoleSelected(role))
             }
@@ -222,8 +221,7 @@ fun BigPanel(
 //                modifier = modifier
 //            )
         }
-        ConnectionState.ADVERTISING,
-        ConnectionState.DISCOVERING-> {
+        ConnectionState.SEARCHING-> {
             DevicesList(
                 state.devices,
                 { device->

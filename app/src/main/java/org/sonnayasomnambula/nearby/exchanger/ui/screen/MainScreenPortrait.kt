@@ -42,7 +42,7 @@ fun MainScreenPortrait(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            ConnectionStateText(state.connectionState)
+            ConnectionStateText(state.connectionState, state.currentRole)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

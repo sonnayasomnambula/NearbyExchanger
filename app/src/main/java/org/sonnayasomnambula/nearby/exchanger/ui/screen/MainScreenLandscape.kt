@@ -54,7 +54,7 @@ fun MainScreenLandscape(
                         .fillMaxHeight(),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    ConnectionStateText(state.connectionState)
+                    ConnectionStateText(state.connectionState, state.currentRole)
 
                     // выбор роли
                     Column(
