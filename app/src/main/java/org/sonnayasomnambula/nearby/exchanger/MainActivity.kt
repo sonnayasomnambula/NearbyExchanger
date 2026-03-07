@@ -3,6 +3,7 @@ package org.sonnayasomnambula.nearby.exchanger
 import MainScreen
 import android.Manifest
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
@@ -12,7 +13,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import android.widget.Toast
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -28,6 +28,8 @@ import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.app.CrashDumper
 import org.sonnayasomnambula.nearby.exchanger.app.MyApplication
 import org.sonnayasomnambula.nearby.exchanger.app.Toaster
+import org.sonnayasomnambula.nearby.exchanger.model.AndroidDeviceEnvironment
+import org.sonnayasomnambula.nearby.exchanger.model.HardwareCapability
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
@@ -177,6 +179,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun Set<HardwareCapability>.toErrorMessage(context: Context): String {
+        return when {
+            contains(HardwareCapability.Location) &&
+                    (contains(HardwareCapability.WiFi) || contains(HardwareCapability.Bluetooth)) ->
+                context.getString(R.string.missing_location) + "\n" +
+                        context.getString(R.string.missing_wifi_or_bluetooth)
+
+            contains(HardwareCapability.Location) ->
+                context.getString(R.string.missing_location)
+
+            else -> context.getString(R.string.missing_wifi_or_bluetooth)
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(LOG_TRACE, "activity: created")
@@ -192,15 +208,21 @@ class MainActivity : ComponentActivity() {
                             is MainScreenEffect.ShowDisconnectedAlert -> {
                                 val text =
                                     getString(R.string.device_disconnected, effect.device.name)
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    text,
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toaster.show(text, this@MainActivity)
+                            }
+
+                            is MainScreenEffect.ShowMissingCapabilities -> {
+                                val context = this@MainActivity
+                                val text = effect.missing.toErrorMessage(context)
+                                Toaster.show(text, context)
                             }
 
                             is MainScreenEffect.CheckDirectoryAccess -> {
                                 checkDirectoryAccess(effect.uri)
+                            }
+
+                            MainScreenEffect.CheckHardwareCapabilities -> {
+                                checkHardwareCapabilities()
                             }
 
                             is MainScreenEffect.RequestPermissions -> {
@@ -291,6 +313,16 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.onScreenEvent(MainScreenEvent.DirectoryAccessChecked(uri, hasAccess))
+    }
+
+    fun checkHardwareCapabilities() {
+        val environment = AndroidDeviceEnvironment(this)
+        val capabilities = mapOf(
+            HardwareCapability.WiFi to environment.isWifiEnabled,
+            HardwareCapability.Bluetooth to environment.isBluetoothEnabled,
+            HardwareCapability.Location to environment.isLocationEnabled
+        )
+        viewModel.onScreenEvent(MainScreenEvent.HardwareCapabilitiesChecked(capabilities))
     }
 
     private fun checkPermissions(permissions: List<String>) {

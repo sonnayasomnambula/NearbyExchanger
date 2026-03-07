@@ -59,6 +59,7 @@ class Advertiser(scope: CoroutineScope, context: Context)
             }
             .addOnFailureListener { exception ->
                 Log.e(LOG_TRACE, "advertising failed", exception)
+                sendEvent(ExchangeEvent.StartError(exception))
                 setSearchingMode(SearchingMode.Failed(
                     message = "Failed to start advertising: ${exception.message}",
                     errorCode = (exception as? ApiException)?.statusCode,

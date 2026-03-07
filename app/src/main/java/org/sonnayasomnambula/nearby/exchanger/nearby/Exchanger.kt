@@ -75,6 +75,7 @@ sealed class ExchangeEvent {
     data class EndpointConnected(val device: RemoteDevice) : ExchangeEvent()
     data class EndpointDisconnected(val device: RemoteDevice) : ExchangeEvent()
     data class RemoteError(val message: String) : ExchangeEvent()
+    data class StartError(val throwable: Throwable) : ExchangeEvent()
 }
 
 sealed class ExchangeCommand {

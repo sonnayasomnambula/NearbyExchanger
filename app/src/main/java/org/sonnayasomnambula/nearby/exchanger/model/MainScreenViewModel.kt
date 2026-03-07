@@ -33,6 +33,8 @@ enum class Role { ADVERTISER, DISCOVERER }
 
 enum class ConnectionState { DISCONNECTED, STARTING, SEARCHING, CONNECTED, ERROR }
 
+enum class HardwareCapability { WiFi, Bluetooth, Location }
+
 data class SaveDir(
     val name: String,
     val uri: Uri,
@@ -62,6 +64,7 @@ sealed interface MainScreenEvent {
     data class ServiceStarted(val role: Role): MainScreenEvent
     data object ServiceStopped: MainScreenEvent
     data class DirectoryAccessChecked(val uri: Uri, val hasAccess: Boolean) : MainScreenEvent
+    data class HardwareCapabilitiesChecked(val capabilities: Map<HardwareCapability, Boolean>) : MainScreenEvent
     data class PermissionsResult(val granted: Boolean) : MainScreenEvent
     data class DeviceClicked(val device: RemoteDevice) : MainScreenEvent
     data object StopTransfers: MainScreenEvent
@@ -70,10 +73,12 @@ sealed interface MainScreenEvent {
 // model => activity
 sealed interface MainScreenEffect {
     data class CheckDirectoryAccess(val uri: Uri) : MainScreenEffect
+    data object CheckHardwareCapabilities : MainScreenEffect
     data class RequestPermissions(val permissions: List<String>) : MainScreenEffect
     data class StartForegroundService(val role: Role) : MainScreenEffect
     data object StopForegroundService : MainScreenEffect
     data class ShowDisconnectedAlert(val device: RemoteDevice) : MainScreenEffect
+    data class ShowMissingCapabilities(val missing: Set<HardwareCapability>) : MainScreenEffect
     data class PickFile(val readOnly: Boolean) : MainScreenEffect
     data class PickDirectory(val readOnly: Boolean) : MainScreenEffect
 }
@@ -188,6 +193,7 @@ class MainScreenViewModel(
             is MainScreenEvent.SendFolderClicked -> onSendFolderClicked()
             is MainScreenEvent.DisconnectClicked -> onDisconnectClicked()
             is MainScreenEvent.DirectoryAccessChecked -> onDirectoryAccessChecked(event.uri, event.hasAccess)
+            is MainScreenEvent.HardwareCapabilitiesChecked -> onHardwareCapabilitiesChecked(event.capabilities)
             is MainScreenEvent.PermissionsResult -> onPermissionResult(granted = event.granted)
             is MainScreenEvent.DeviceClicked -> onDeviceClicked(event.device)
             is MainScreenEvent.StopTransfers -> exchanger?.execute(ExchangeCommand.StopTransfers)
@@ -212,7 +218,8 @@ class MainScreenViewModel(
                 val action = requireNotNull(pendingAction)
                 pendingAction = null
                 if (action is PendingAction.StartService) {
-                    _activityEffects.send(MainScreenEffect.StartForegroundService(action.role))
+                    pendingAction = action
+                    _activityEffects.send(MainScreenEffect.CheckHardwareCapabilities)
                 }
             }
         }
@@ -225,12 +232,19 @@ class MainScreenViewModel(
     private fun onServiceStopped() {
         viewModelScope.launch {
             _screenState.update { currentState ->
-                currentState.copy(
-                    connectionState = ConnectionState.DISCONNECTED,
-                    currentRole = null,
-                    statusText = "",
-                    devices = emptyList()
-                )
+                if (currentState.connectionState == ConnectionState.ERROR) {
+                    currentState.copy(
+                        currentRole = null,
+                        devices = emptyList()
+                    )
+                } else {
+                    currentState.copy(
+                        connectionState = ConnectionState.DISCONNECTED,
+                        currentRole = null,
+                        statusText = "",
+                        devices = emptyList()
+                    )
+                }
             }
         }
     }
@@ -302,9 +316,11 @@ class MainScreenViewModel(
                         _activityEffects.send(StopForegroundService)
                         _activityEffects.send(ShowDisconnectedAlert(event.device))
                     }
-
                     is ExchangeEvent.RemoteError -> {
                         throw NotImplementedError("[NOT IMPLEMENTED] Remote error: ${event.message}")
+                    }
+                    is ExchangeEvent.StartError -> {
+                        _activityEffects.send(StopForegroundService)
                     }
                 }
                 _exchangerEvents.emit(event)
@@ -331,6 +347,37 @@ class MainScreenViewModel(
 
                 pendingAction = PendingAction.AddSaveDirectory
                 _activityEffects.send(MainScreenEffect.PickDirectory(readOnly = false))
+            }
+        }
+    }
+
+    private fun onHardwareCapabilitiesChecked(capabilities: Map<HardwareCapability, Boolean>) {
+        val action = pendingAction
+        pendingAction = null
+        if (action is PendingAction.StartService) {
+            val missing = mutableSetOf<HardwareCapability>()
+
+            if (action.role == Role.DISCOVERER) {
+                if (capabilities[HardwareCapability.Location] == false) {
+                    missing.add(HardwareCapability.Location)
+                }
+            }
+
+            val hasWiFi = capabilities[HardwareCapability.WiFi] == true
+            val hasBluetooth = capabilities[HardwareCapability.Bluetooth] == true
+
+            if (!hasWiFi && !hasBluetooth) {
+                missing.add(HardwareCapability.WiFi)
+                missing.add(HardwareCapability.Bluetooth)
+            }
+
+            viewModelScope.launch {
+                if (missing.isNotEmpty()) {
+                    _screenState.update { it.copy(connectionState = ConnectionState.DISCONNECTED) }
+                    _activityEffects.send(MainScreenEffect.ShowMissingCapabilities(missing))
+                } else {
+                    _activityEffects.send(MainScreenEffect.StartForegroundService(action.role))
+                }
             }
         }
     }

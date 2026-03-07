@@ -106,7 +106,7 @@ fun RoleSelectorRow(
         val textResourceId = if (role == Role.ADVERTISER) R.string.advertiser else R.string.discoverer
 
         RadioButton(
-            enabled = state.connectionState == ConnectionState.DISCONNECTED,
+            enabled = state.connectionState == ConnectionState.DISCONNECTED || state.connectionState == ConnectionState.ERROR,
             selected = (state.connectionState == ConnectionState.STARTING || state.connectionState == ConnectionState.SEARCHING) && state.currentRole == role,
             onClick = {
                 onEvent(MainScreenEvent.RoleSelected(role))

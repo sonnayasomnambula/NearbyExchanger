@@ -56,6 +56,7 @@ class Discoverer(scope: CoroutineScope, context: Context)
             }
             .addOnFailureListener { exception ->
                 Log.e(LOG_TRACE, "discovery failed", exception)
+                sendEvent(ExchangeEvent.StartError(exception))
                 setSearchingMode(SearchingMode.Failed(
                     message = "Failed to start discovery: ${exception.message}",
                     errorCode = (exception as? ApiException)?.statusCode,
