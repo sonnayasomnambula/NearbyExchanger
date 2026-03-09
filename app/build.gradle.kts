@@ -13,8 +13,8 @@ android {
         applicationId = "org.sonnayasomnambula.nearby.exchanger"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +57,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.documentfile)
     implementation(libs.play.services.nearby)
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.material3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -1,9 +1,5 @@
 [!] Cannot start advertise on Android 10: error 8007 STATUS_RADIO_ERROR
 
-[*] Show progress in notification
-
-[+] Create simple notification instead foreground service notification on old devices
-
 [+] Show network transmission errors (e.g. failed deserialization)
 
 [+] Discoverer: Connect automatically (settings?)

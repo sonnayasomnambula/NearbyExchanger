@@ -32,4 +32,5 @@
     <string name="not_supported_install_file_manager">%1$s not supported. Install a file manager (e.g. Google Files)</string>
     <string name="missing_wifi_or_bluetooth">Enable Bluetooth or Wi-Fi</string>
     <string name="missing_location">Enable location</string>
+    <string name="icon_by_becris">Transfer icon created by Becris - Flaticon</string>
 </resources>

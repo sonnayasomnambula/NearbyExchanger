@@ -50,7 +50,10 @@ data class TransferStatistics(
     val current: String = "",
     val totalSize: Long = 0,
     val totalProgress: Long = 0,
-)
+) {
+    val hasData: Boolean
+        get() = totalSize > 0
+}
 
 data class TransferProgress(
     val currentSize: Long = 0,

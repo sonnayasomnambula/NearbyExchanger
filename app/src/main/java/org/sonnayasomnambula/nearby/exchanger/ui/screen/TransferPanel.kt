@@ -38,9 +38,6 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
 import org.sonnayasomnambula.nearby.exchanger.nearby.TransferStatistics
 
-val TransferStatistics.hasData: Boolean
-    get() = totalSize > 0
-
 val MainScreenState.hasTransfers: Boolean
     get() = incoming.statistics.hasData || outgoing.statistics.hasData
 
