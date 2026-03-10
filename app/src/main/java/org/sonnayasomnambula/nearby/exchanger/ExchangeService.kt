@@ -18,7 +18,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.model.Role
@@ -179,6 +178,7 @@ class ExchangeService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
+            @Suppress("DEPRECATION")
             stopForeground(true)
 
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -279,7 +279,7 @@ class ExchangeService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .addAction(
                     android.R.drawable.ic_menu_close_clear_cancel,
-                    getString(R.string.disconnect_label),
+                    getString(R.string.disconnect),
                     disconnectPendingIntent
                 )
                 .setProgress(state.progressMax, state.progressCurrent, false)

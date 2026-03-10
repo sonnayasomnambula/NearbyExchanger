@@ -27,16 +27,18 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 
 import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
-import org.sonnayasomnambula.nearby.exchanger.nearby.TransferStatistics
 
 val MainScreenState.hasTransfers: Boolean
     get() = incoming.statistics.hasData || outgoing.statistics.hasData
@@ -68,7 +70,7 @@ fun TransferPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(0.dp)
+            .padding(horizontal = 16.dp)
     ) {
         if (incoming.statistics.hasData) {
             TransferBlock(
@@ -76,9 +78,9 @@ fun TransferPanel(
                 state = incoming,
                 modifier = Modifier.weight(1f)
             )
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         if (outgoing.statistics.hasData) {
             TransferBlock(
@@ -86,9 +88,9 @@ fun TransferPanel(
                 state = outgoing,
                 modifier = Modifier.weight(1f)
             )
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         Button(
             onClick = onStop,
@@ -98,9 +100,10 @@ fun TransferPanel(
                 .padding(bottom = 16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.error
-            )
+            ),
+            shape = RoundedCornerShape(8.dp),
         ) {
-            Text("Stop")
+            Text(stringResource(R.string.stop))
         }
     }
 }
@@ -152,7 +155,10 @@ private fun TransferBlock(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier
@@ -166,7 +172,7 @@ private fun TransferBlock(
             )
 
             Text(
-                text = state.statistics.current.ifEmpty { "Waiting..." },
+                text = state.statistics.current.ifEmpty { stringResource(R.string.waiting) },
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier
                     .fillMaxWidth()

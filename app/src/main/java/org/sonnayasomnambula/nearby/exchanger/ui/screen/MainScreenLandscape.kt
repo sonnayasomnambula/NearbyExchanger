@@ -1,18 +1,17 @@
 package org.sonnayasomnambula.nearby.exchanger.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -23,68 +22,58 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
-import org.sonnayasomnambula.nearby.exchanger.MainActivity
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreenLandscape(
     state: MainScreenState,
     onEvent: (MainScreenEvent) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(16.dp)
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ){
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
-                // Левая колонка: статус, роли, кнопка
                 Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier
-                        .width(IntrinsicSize.Min)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(16.dp)
+                        .width(IntrinsicSize.Max)
                 ) {
                     ConnectionStateText(state.connectionState, state.currentRole)
-
-                    // выбор роли
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        RoleSelectorRow(Role.ADVERTISER, state, onEvent)
-                        RoleSelectorRow(Role.DISCOVERER, state, onEvent)
-                    }
+                    RoleSelectorRow(Role.ADVERTISER, state, onEvent)
+                    RoleSelectorRow(Role.DISCOVERER, state, onEvent)
+                    Spacer(modifier = Modifier.weight(1f))
 
                     SendRow(state, onEvent)
 
                     ActionButton(
-                        stringResource(R.string.disconnect_label),
-                        state.connectionState == ConnectionState.SEARCHING || state.connectionState == ConnectionState.CONNECTED
+                        text = stringResource(R.string.disconnect),
+                        enabled = state.connectionState == ConnectionState.SEARCHING ||
+                                state.connectionState == ConnectionState.CONNECTED,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         onEvent(MainScreenEvent.DisconnectClicked)
                     }
-                }
 
-                BigPanel(
-                    state,
-                    onEvent,
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                )
+                }
             }
 
-            SmallText(state.statusText)
+            BigPanel(
+                state,
+                onEvent,
+                Modifier
+                    .fillMaxSize()
+            )
+        }
+        if (state.statusText.isNotEmpty()) {
+            StatusText(state.statusText)
         }
     }
 }

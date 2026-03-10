@@ -1,5 +1,10 @@
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import org.sonnayasomnambula.nearby.exchanger.MainActivity
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 
@@ -19,18 +24,27 @@ fun MainScreen(
 ) {
     val state by viewModel.screenState.collectAsState()
 
-    when (orientation) {
-        ScreenOrientation.PORTRAIT -> {
-            MainScreenPortrait(
-                state,
-                viewModel::onScreenEvent
-            )
-        }
-        ScreenOrientation.LANDSCAPE -> {
-            MainScreenLandscape(
-                state,
-                viewModel::onScreenEvent
-            )
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(
+                WindowInsets.systemBars
+            ),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        when (orientation) {
+            ScreenOrientation.PORTRAIT -> {
+                MainScreenPortrait(
+                    state,
+                    viewModel::onScreenEvent
+                )
+            }
+            ScreenOrientation.LANDSCAPE -> {
+                MainScreenLandscape(
+                    state,
+                    viewModel::onScreenEvent
+                )
+            }
         }
     }
 }

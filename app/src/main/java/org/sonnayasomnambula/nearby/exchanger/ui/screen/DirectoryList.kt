@@ -64,113 +64,104 @@ fun DirectoryList(
                         onEvent(MainScreenEvent.RemoveDirectoryRequested(dirsToDelete!!))
                         dirsToDelete = null
                     }
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { dirsToDelete = null }
-                ) { Text("Cancel") }
+                ) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
 
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+    Column(
+        modifier = modifier.padding(horizontal = 16.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        // Заголовок с кнопкой добавления
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Заголовок с кнопкой добавления
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Text(
+                text = stringResource(R.string.save_to),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Кнопка "плюсик" для добавления
+            IconButton(
+                onClick = {
+                    onEvent(MainScreenEvent.AddDirectoryRequested)
+                },
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.add_directory),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Список мест сохранения
+        if (saveDirs.isEmpty()) {
+            // Пустой список
+            Box(
+                modifier = modifier,
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = stringResource(R.string.save_to),
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = stringResource(R.string.add_directory_proposal),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
-
-                // Кнопка "плюсик" для добавления
-                IconButton(
-                    onClick = {
-                        onEvent(MainScreenEvent.AddDirectoryRequested)
-                    },
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = stringResource(R.string.add_directory),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Список мест сохранения
-            if (saveDirs.isEmpty()) {
-                // Пустой список
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.add_directory_proposal),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            } else {
-                // Список выбранных папок с radio buttons
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(saveDirs) { dir ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        onEvent(MainScreenEvent.DirectorySelected(dir.uri))
-                                    },
-                                    onLongClick = {
-                                        dirsToDelete = dir.uri
-                                    },
-                                ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = dir.uri == currentDir,
+        } else {
+            // Список выбранных папок с radio buttons
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(saveDirs) { dir ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
                                 onClick = {
                                     onEvent(MainScreenEvent.DirectorySelected(dir.uri))
-                                }
-                            )
-
-                            Column(
-                                modifier = Modifier.padding(start = 8.dp)
-                            ) {
-                                Text(
-                                    text = dir.name,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (dir.uri == currentDir) FontWeight.Medium
-                                    else FontWeight.Normal
-                                )
-                                Text(
-                                    text = dir.uri.toString(),
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                },
+                                onLongClick = {
+                                    dirsToDelete = dir.uri
+                                },
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = dir.uri == currentDir,
+                            onClick = {
+                                onEvent(MainScreenEvent.DirectorySelected(dir.uri))
                             }
+                        )
+
+                        Column(
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Text(
+                                text = dir.name,
+                                fontSize = 14.sp,
+                                fontWeight = if (dir.uri == currentDir) FontWeight.Medium
+                                else FontWeight.Normal
+                            )
+                            Text(
+                                text = dir.uri.toString(),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }

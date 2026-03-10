@@ -2,17 +2,16 @@ package org.sonnayasomnambula.nearby.exchanger.ui.screen
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,8 +20,6 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,10 +38,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLinkStyles
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -97,8 +90,7 @@ fun ConnectionStateText(connectionState: ConnectionState, role: Role?) {
         text = connectionState.getDisplayText(role),
         fontSize = 18.sp,
         fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth()
+        color = MaterialTheme.colorScheme.onSurface
     )
 }
 
@@ -108,16 +100,15 @@ fun ConnectionStateText(connectionState: ConnectionState, role: Role?) {
 fun RoleSelectorRow(
     role: Role,
     state: MainScreenState,
-    onEvent: (MainScreenEvent) -> Unit,
-    modifier: Modifier = Modifier
+    onEvent: (MainScreenEvent) -> Unit
 ) {
     Row(
-        modifier = modifier
+        modifier = Modifier
             .clickable(enabled = state.connectionState == ConnectionState.DISCONNECTED) {
                 onEvent(MainScreenEvent.RoleSelected(role))
             },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         val textResourceId = if (role == Role.ADVERTISER) R.string.advertiser else R.string.discoverer
 
@@ -126,8 +117,10 @@ fun RoleSelectorRow(
             selected = (state.connectionState == ConnectionState.STARTING || state.connectionState == ConnectionState.SEARCHING) && state.currentRole == role,
             onClick = {
                 onEvent(MainScreenEvent.RoleSelected(role))
-            }
+            },
+            modifier = Modifier.size(20.dp), // removes extra padding https://stackoverflow.com/a/71850751
         )
+
         Text(
             text = stringResource(textResourceId),
             color = MaterialTheme.colorScheme.onSurface,
@@ -139,12 +132,12 @@ fun RoleSelectorRow(
 fun ActionButton(
     text: String,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .height(56.dp),
         enabled = enabled,
         shape = MaterialTheme.shapes.medium
@@ -186,7 +179,7 @@ fun SendRow(
     onEvent: (MainScreenEvent) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+//        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
     ) {
         ActionButton(
@@ -205,7 +198,7 @@ fun SendRow(
         Spacer(modifier = Modifier.width(8.dp))
         ActionButton(
             Icons.Filled.AddCircle,
-            state.connectionState == ConnectionState.CONNECTED
+            true
         ) {
             // TODO
         }
@@ -279,27 +272,14 @@ private fun StaticText(
     text: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxSize(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
+    Text(
+        text = text,
+        fontSize = 16.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .wrapContentHeight(align = Alignment.CenterVertically)
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -371,7 +351,7 @@ fun AboutDialog(
 }
 
 @Composable
-fun SmallText(text: String) {
+fun StatusText(text: String) {
     Text(
         text = text,
         fontSize = 14.sp,
