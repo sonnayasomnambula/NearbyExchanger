@@ -2,6 +2,7 @@ package org.sonnayasomnambula.nearby.exchanger.ui.screen
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,10 +19,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -38,6 +43,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -93,8 +100,6 @@ fun ConnectionStateText(connectionState: ConnectionState, role: Role?) {
         color = MaterialTheme.colorScheme.onSurface
     )
 }
-
-
 
 @Composable
 fun RoleSelectorRow(
@@ -179,7 +184,7 @@ fun SendRow(
     onEvent: (MainScreenEvent) -> Unit
 ) {
     Row(
-//        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
     ) {
         ActionButton(
@@ -188,14 +193,14 @@ fun SendRow(
         ) {
             onEvent(MainScreenEvent.SendFileClicked)
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(16.dp))
         ActionButton(
             Icons.Filled.Folder,
             state.connectionState == ConnectionState.CONNECTED
         ) {
             onEvent(MainScreenEvent.SendFolderClicked)
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(16.dp))
         ActionButton(
             Icons.Filled.AddCircle,
             true
@@ -211,17 +216,11 @@ fun BigPanel(
     onEvent: (MainScreenEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showAbout by remember { mutableStateOf(false) }
-
     when (state.connectionState) {
         ConnectionState.DISCONNECTED -> {
-            if (showAbout) {
-                AboutDialog(onDismiss = { showAbout = false })
-            }
-
             StaticText(
-                stringResource(R.string.starting_hint),
-                modifier.clickable { showAbout = true }
+                text = stringResource(R.string.starting_hint),
+                modifier = modifier
             )
 //            TransferPanel(
 //                incoming = TransferState(
@@ -358,4 +357,51 @@ fun StatusText(text: String) {
         fontWeight = FontWeight.Normal,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+@Composable
+fun MenuButton() {
+    var expanded by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.menu)
+            )
+        }
+
+        if (showAbout) {
+            AboutDialog(onDismiss = { showAbout = false })
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            val itemStyle = TextStyle(
+                fontFamily = FontFamily.Default,
+                fontWeight = FontWeight.Normal,
+                fontSize = 16.sp,
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = stringResource(R.string.about),
+                        style = itemStyle
+                    )
+                       },
+                onClick = {
+                    expanded = false
+                    showAbout = true
+                }
+            )
+        }
+    }
 }

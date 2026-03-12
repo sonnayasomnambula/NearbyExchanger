@@ -13,8 +13,10 @@
     <string name="device_status_connected">Connected</string>
     <string name="devices_list_header">Available devices</string>
     <string name="no_devices_found">No devices found</string>
+    <string name="about">About…</string>
     <string name="advertiser">Advertiser</string>
     <string name="discoverer">Discoverer</string>
+    <string name="menu">Menu</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="delete">Delete</string>

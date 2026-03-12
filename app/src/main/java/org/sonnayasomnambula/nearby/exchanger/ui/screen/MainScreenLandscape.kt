@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -46,7 +47,19 @@ fun MainScreenLandscape(
                         .padding(16.dp)
                         .width(IntrinsicSize.Max)
                 ) {
-                    ConnectionStateText(state.connectionState, state.currentRole)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ConnectionStateText(
+                            state.connectionState,
+                            state.currentRole,
+                        )
+
+                        MenuButton()
+                    }
+
                     RoleSelectorRow(Role.ADVERTISER, state, onEvent)
                     RoleSelectorRow(Role.DISCOVERER, state, onEvent)
                     Spacer(modifier = Modifier.weight(1f))
@@ -61,7 +74,6 @@ fun MainScreenLandscape(
                     ) {
                         onEvent(MainScreenEvent.DisconnectClicked)
                     }
-
                 }
             }
 

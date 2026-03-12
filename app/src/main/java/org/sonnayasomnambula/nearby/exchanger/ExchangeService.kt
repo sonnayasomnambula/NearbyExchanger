@@ -43,13 +43,20 @@ fun SearchingMode.getDisplayText(context: Context): String {
     }
 }
 
-fun ExchangeState.getDisplayText(context: Context): String {
+fun ExchangeState.getStateText(context: Context): String {
     return when (val searching = searching) {
         SearchingMode.Stopped -> when (session) {
             is SessionState.Connected -> context.getString(R.string.connection_state_connected)
             is SessionState.None -> context.getString(R.string.connection_state_not_connected)
         }
         else -> searching.getDisplayText(context)
+    }
+}
+
+fun ExchangeState.getActionText(context: Context): String {
+    return when (session) {
+        is SessionState.Connected -> context.getString(R.string.disconnect)
+        is SessionState.None -> context.getString(R.string.stop)
     }
 }
 
@@ -206,6 +213,7 @@ class ExchangeService : Service() {
 
     data class NotificationState(
         val contentText: String,
+        val actionText: String,
         val progressMax: Int,
         val progressCurrent: Int,
     ) {
@@ -227,7 +235,8 @@ class ExchangeService : Service() {
                 val outgoing = ProgressState(state.outgoing)
 
                 return NotificationState(
-                    contentText = state.getDisplayText(context),
+                    contentText = state.getStateText(context),
+                    actionText = state.getActionText(context),
                     progressMax = if (incoming.max > 0) incoming.max else outgoing.max,
                     progressCurrent = if (incoming.current > 0) incoming.current else outgoing.current
                 )
@@ -279,7 +288,7 @@ class ExchangeService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .addAction(
                     android.R.drawable.ic_menu_close_clear_cancel,
-                    getString(R.string.disconnect),
+                    state.actionText,
                     disconnectPendingIntent
                 )
                 .setProgress(state.progressMax, state.progressCurrent, false)
