@@ -181,11 +181,13 @@ fun ActionButton(
 @Composable
 fun SendRow(
     state: MainScreenState,
-    onEvent: (MainScreenEvent) -> Unit
+    onEvent: (MainScreenEvent) -> Unit,
+    modifier: Modifier,
+    horizontalArrangement: Arrangement.Horizontal
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
+        modifier = modifier,
+        horizontalArrangement = horizontalArrangement
     ) {
         ActionButton(
             Icons.AutoMirrored.Filled.InsertDriveFile,
@@ -200,6 +202,7 @@ fun SendRow(
         ) {
             onEvent(MainScreenEvent.SendFolderClicked)
         }
+        /*
         Spacer(modifier = Modifier.width(16.dp))
         ActionButton(
             Icons.Filled.AddCircle,
@@ -207,6 +210,7 @@ fun SendRow(
         ) {
             // TODO
         }
+        */
     }
 }
 
@@ -239,7 +243,10 @@ fun BigPanel(
 //            )
         }
         ConnectionState.STARTING ->
-            StaticText(stringResource(R.string.connection_state_starting), modifier)
+            StaticText(
+                text = stringResource(R.string.connection_state_starting),
+                modifier = modifier
+            )
         ConnectionState.SEARCHING-> {
             DevicesList(
                 state.devices,
@@ -277,6 +284,7 @@ private fun StaticText(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = modifier
+            .padding(16.dp)
             .wrapContentHeight(align = Alignment.CenterVertically)
     )
 }

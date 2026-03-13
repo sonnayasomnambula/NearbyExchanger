@@ -21,7 +21,8 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = LightActiveButton,
     surface = LightCard,
-    background = Color.White
+    background = Color.White,
+
 )
 @Composable
 fun AppTheme(

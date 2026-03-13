@@ -213,16 +213,23 @@ class MainScreenViewModel(
     }
 
     private fun onPermissionResult(granted: Boolean) {
-        if (granted) {
-            viewModelScope.launch {
-                val action = requireNotNull(pendingAction)
-                pendingAction = null
-                if (action is PendingAction.StartService) {
+        viewModelScope.launch {
+            val action = requireNotNull(pendingAction)
+            pendingAction = null
+            if (action is PendingAction.StartService) {
+                if (granted) {
                     pendingAction = action
-                    _activityEffects.send(MainScreenEffect.CheckHardwareCapabilities)
+                    _activityEffects.send(CheckHardwareCapabilities)
+                } else {
+                    _screenState.update { currentState ->
+                        currentState.copy(
+                            connectionState = ConnectionState.DISCONNECTED
+                        )
+                    }
                 }
             }
         }
+
     }
 
     private fun onServiceStarted(role: Role) {
@@ -346,7 +353,7 @@ class MainScreenViewModel(
                 }
 
                 pendingAction = PendingAction.AddSaveDirectory
-                _activityEffects.send(MainScreenEffect.PickDirectory(readOnly = false))
+                _activityEffects.send(PickDirectory(readOnly = false))
             }
         }
     }
@@ -374,9 +381,9 @@ class MainScreenViewModel(
             viewModelScope.launch {
                 if (missing.isNotEmpty()) {
                     _screenState.update { it.copy(connectionState = ConnectionState.DISCONNECTED) }
-                    _activityEffects.send(MainScreenEffect.ShowMissingCapabilities(missing))
+                    _activityEffects.send(ShowMissingCapabilities(missing))
                 } else {
-                    _activityEffects.send(MainScreenEffect.StartForegroundService(action.role))
+                    _activityEffects.send(StartForegroundService(action.role))
                 }
             }
         }
@@ -403,7 +410,7 @@ class MainScreenViewModel(
 
             savedState.currentDir?.let { uri ->
                 if (isValidDirectory(uri)) {
-                    _activityEffects.send(MainScreenEffect.CheckDirectoryAccess(uri))
+                    _activityEffects.send(CheckDirectoryAccess(uri))
                 } else {
                     removeDir(uri)
                 }
@@ -414,7 +421,7 @@ class MainScreenViewModel(
     private fun isValidDirectory(uri: Uri): Boolean {
         return try {
             !uri.toString().isBlank() && !uri.scheme.isNullOrBlank()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

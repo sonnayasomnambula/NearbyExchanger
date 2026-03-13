@@ -8,4 +8,4 @@ val DarkRedButton = Color(0xFFFF6B6B)
 
 
 val LightActiveButton = Color(0xFF366098)
-val LightCard = Color(0xFFF1F1F1)
+val LightCard = Color(0xFFDAEDFC)

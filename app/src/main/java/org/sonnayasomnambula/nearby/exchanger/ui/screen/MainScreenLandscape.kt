@@ -62,12 +62,16 @@ fun MainScreenLandscape(
 
                     RoleSelectorRow(Role.ADVERTISER, state, onEvent)
                     RoleSelectorRow(Role.DISCOVERER, state, onEvent)
-                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(Modifier.weight(1f))
 
-                    SendRow(state, onEvent)
-
+                    SendRow(state, onEvent, Modifier.fillMaxWidth(), Arrangement.SpaceEvenly)
                     ActionButton(
-                        text = stringResource(R.string.disconnect),
+                        text = stringResource(
+                            if (state.connectionState == ConnectionState.CONNECTED)
+                                R.string.disconnect
+                            else
+                                R.string.stop
+                        ),
                         enabled = state.connectionState == ConnectionState.SEARCHING ||
                                 state.connectionState == ConnectionState.CONNECTED,
                         modifier = Modifier.fillMaxWidth()
