@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -27,6 +26,7 @@ import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeEvent
 import org.sonnayasomnambula.nearby.exchanger.nearby.ExchangeState
 import org.sonnayasomnambula.nearby.exchanger.nearby.SearchingMode
 import org.sonnayasomnambula.nearby.exchanger.nearby.SessionState
+import org.sonnayasomnambula.nearby.exchanger.nearby.TransferEngine
 import org.sonnayasomnambula.nearby.exchanger.nearby.TransferState
 
 enum class Role { ADVERTISER, DISCOVERER }
@@ -45,10 +45,11 @@ data class MainScreenState (
     val currentRole: Role? = null,
     val saveDirs: List<SaveDir> = emptyList(),
     val currentDir: Uri? = null,
-    val statusText: String = "",
+    val errorText: String? = null,
     val devices: List<RemoteDevice> = emptyList(),
     val incoming: TransferState = TransferState(),
-    val outgoing: TransferState = TransferState()
+    val outgoing: TransferState = TransferState(),
+    val pendingShare: List<TransferEngine.File> = emptyList()
 )
 
 // activity/composable => model
@@ -68,6 +69,8 @@ sealed interface MainScreenEvent {
     data class PermissionsResult(val granted: Boolean) : MainScreenEvent
     data class DeviceClicked(val device: RemoteDevice) : MainScreenEvent
     data object StopTransfers: MainScreenEvent
+    data class Shared(val files: List<TransferEngine.File>) : MainScreenEvent
+    data object ClearPendingShare: MainScreenEvent
 }
 
 // model => activity
@@ -155,6 +158,10 @@ class MainScreenViewModel(
     private val permissionPolicy: PermissionPolicy
 ) : ViewModel() {
 
+    init {
+        Log.d(LOG_TRACE, "model: created")
+    }
+
     private val _screenState = MutableStateFlow(MainScreenState())
     val screenState: StateFlow<MainScreenState> = _screenState
     val currentDirFlow: Flow<Uri?> = screenState.map { it.currentDir }.distinctUntilChanged()
@@ -163,9 +170,6 @@ class MainScreenViewModel(
     val activityEffects = _activityEffects.receiveAsFlow()
 
     private var exchanger: Exchanger? = null
-
-    private val _exchangerState = MutableStateFlow<ExchangeState>(ExchangeState())
-    val exchangerState: StateFlow<ExchangeState> = _exchangerState.asStateFlow()
 
     private val _exchangerEvents = MutableSharedFlow<ExchangeEvent>()
     val exchangerEvents: SharedFlow<ExchangeEvent> = _exchangerEvents.asSharedFlow()
@@ -197,6 +201,8 @@ class MainScreenViewModel(
             is MainScreenEvent.PermissionsResult -> onPermissionResult(granted = event.granted)
             is MainScreenEvent.DeviceClicked -> onDeviceClicked(event.device)
             is MainScreenEvent.StopTransfers -> exchanger?.execute(ExchangeCommand.StopTransfers)
+            is MainScreenEvent.Shared -> onShared(event.files)
+            MainScreenEvent.ClearPendingShare -> onShared(emptyList())
         }
     }
 
@@ -209,7 +215,18 @@ class MainScreenViewModel(
                 exchanger?.execute(ExchangeCommand.DisconnectEndpoint(device.endpointId))
             }
         }
+    }
 
+    private fun onShared(files: List<TransferEngine.File>) {
+        viewModelScope.launch {
+            _screenState.update { currentState ->
+                currentState.copy(
+                    pendingShare = files
+                )
+            }
+
+            trySendShare()
+        }
     }
 
     private fun onPermissionResult(granted: Boolean) {
@@ -229,7 +246,6 @@ class MainScreenViewModel(
                 }
             }
         }
-
     }
 
     private fun onServiceStarted(role: Role) {
@@ -248,7 +264,7 @@ class MainScreenViewModel(
                     currentState.copy(
                         connectionState = ConnectionState.DISCONNECTED,
                         currentRole = null,
-                        statusText = "",
+                        errorText = "",
                         devices = emptyList()
                     )
                 }
@@ -272,7 +288,7 @@ class MainScreenViewModel(
         }
     }
 
-    private fun determineStatusText(exchangerState: ExchangeState): String {
+    private fun determineErrorText(exchangerState: ExchangeState): String {
         return when (val searching = exchangerState.searching) {
             is SearchingMode.Failed -> searching.message
             else -> ""
@@ -298,14 +314,12 @@ class MainScreenViewModel(
 
         viewModelScope.launch {
             exchanger.state.collect { exchangerState ->
-                _exchangerState.value = exchangerState
-
                 _screenState.update { currentState ->
                     currentState.copy(
                         connectionState = determineConnectionState(exchangerState),
                         currentRole = exchanger.role(),
                         devices = exchangerState.devices,
-                        statusText = determineStatusText(exchangerState),
+                        errorText = determineErrorText(exchangerState),
                         incoming = exchangerState.incoming,
                         outgoing = exchangerState.outgoing
                     )
@@ -315,6 +329,7 @@ class MainScreenViewModel(
 
         viewModelScope.launch {
             exchanger.events.collect { event ->
+                Log.d(LOG_TRACE, "model: $event")
                 when (event) {
                     is ExchangeEvent.EndpointConnected -> {
                         // nothing
@@ -331,6 +346,12 @@ class MainScreenViewModel(
                     }
                 }
                 _exchangerEvents.emit(event)
+            }
+        }
+
+        viewModelScope.launch {
+            exchanger.state.collect {
+                trySendShare()
             }
         }
     }
@@ -525,6 +546,20 @@ class MainScreenViewModel(
             pendingAction = PendingAction.StartService(role)
             val permissions = permissionPolicy.permissionsFor(role)
             _activityEffects.send(MainScreenEffect.RequestPermissions(permissions))
+        }
+    }
+
+    private fun trySendShare() {
+        val exchanger = this.exchanger ?: return
+        if (exchanger.state.value.session is SessionState.Connected &&
+            _screenState.value.pendingShare.isNotEmpty()) {
+            val files = _screenState.value.pendingShare
+            _screenState.update { state ->
+                state.copy(
+                    pendingShare = emptyList()
+                )
+            }
+            exchanger.execute(ExchangeCommand.SendMultiple(files))
         }
     }
 }

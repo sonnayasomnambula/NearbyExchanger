@@ -13,14 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import org.sonnayasomnambula.nearby.exchanger.model.ConnectionState
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
-import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
 @Composable
@@ -28,68 +23,50 @@ fun MainScreenLandscape(
     state: MainScreenState,
     onEvent: (MainScreenEvent) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+    ){
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ){
-            Box(
+                .background(MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.medium),
                 modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(Padding.medium)
+                    .width(IntrinsicSize.Max)
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .width(IntrinsicSize.Max)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ConnectionStateText(
-                            state.connectionState,
-                            state.currentRole,
-                        )
+                MenuRow(state)
+                RoleSelectorRow(Role.ADVERTISER, state, onEvent)
+                RoleSelectorRow(Role.DISCOVERER, state, onEvent)
+                Spacer(Modifier.weight(1f))
 
-                        MenuButton()
-                    }
-
-                    RoleSelectorRow(Role.ADVERTISER, state, onEvent)
-                    RoleSelectorRow(Role.DISCOVERER, state, onEvent)
-                    Spacer(Modifier.weight(1f))
-
-                    SendRow(state, onEvent, Modifier.fillMaxWidth(), Arrangement.SpaceEvenly)
-                    ActionButton(
-                        text = stringResource(
-                            if (state.connectionState == ConnectionState.CONNECTED)
-                                R.string.disconnect
-                            else
-                                R.string.stop
-                        ),
-                        enabled = state.connectionState == ConnectionState.SEARCHING ||
-                                state.connectionState == ConnectionState.CONNECTED,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        onEvent(MainScreenEvent.DisconnectClicked)
-                    }
-                }
+                SendRow(state, onEvent, Modifier.fillMaxWidth(), Arrangement.SpaceEvenly)
+                StopButton(state.connectionState, onEvent)
             }
+        }
 
+        Column(
+            Modifier.fillMaxSize()
+        ) {
             BigPanel(
                 state,
                 onEvent,
                 Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
             )
-        }
-        if (state.statusText.isNotEmpty()) {
-            StatusText(state.statusText)
+
+            if (state.pendingShare.isNotEmpty()) {
+                PendingShareRow(
+                    state.pendingShare,
+                    onEvent,
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Padding.medium)
+                )
+            }
         }
     }
 }

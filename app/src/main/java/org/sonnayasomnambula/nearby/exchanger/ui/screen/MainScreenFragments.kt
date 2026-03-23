@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.BasicAlertDialog
@@ -56,6 +57,7 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
 import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.nearby.TransferEngine
 
 @Composable
 fun ConnectionState.getDisplayText(role: Role?): String {
@@ -88,6 +90,36 @@ fun RemoteDevice.ConnectionState.getColor(): Color {
         RemoteDevice.ConnectionState.CONNECTING -> Color(0xFFFF9800)
         RemoteDevice.ConnectionState.AWAITING_CONFIRM -> Color(0xFF9C27B0)
         RemoteDevice.ConnectionState.CONNECTED ->Color(0xFF2196F3)
+    }
+}
+
+@Composable
+fun List<TransferEngine.File>.getDisplayText(): String {
+    if (isEmpty()) return ""
+
+    val resources = LocalContext.current.resources
+
+    return if (size < 10) {
+        val names = joinToString(" ") { it.path }
+        if (names.length < 100) {
+            resources.getQuantityString(
+                R.plurals.pending_files_list,
+                size,
+                names
+            )
+        } else {
+            resources.getQuantityString(
+                R.plurals.pending_files_count,
+                size,
+                size
+            )
+        }
+    } else {
+        resources.getQuantityString(
+            R.plurals.pending_files_count,
+            size,
+            size
+        )
     }
 }
 
@@ -179,6 +211,45 @@ fun ActionButton(
 }
 
 @Composable
+fun StopButton(
+    connectionState: ConnectionState,
+    onEvent: (MainScreenEvent) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    ActionButton(
+        text = stringResource(
+            if (connectionState == ConnectionState.CONNECTED)
+                R.string.disconnect
+            else
+                R.string.stop),
+        enabled = connectionState == ConnectionState.SEARCHING ||
+                connectionState == ConnectionState.CONNECTED,
+        modifier = modifier
+    ) {
+        onEvent(MainScreenEvent.DisconnectClicked)
+    }
+}
+
+@Composable
+fun MenuRow(
+    state: MainScreenState,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ConnectionStateText(
+            state.connectionState,
+            state.currentRole,
+        )
+
+        MenuButton()
+    }
+}
+
+@Composable
 fun SendRow(
     state: MainScreenState,
     onEvent: (MainScreenEvent) -> Unit,
@@ -195,7 +266,7 @@ fun SendRow(
         ) {
             onEvent(MainScreenEvent.SendFileClicked)
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(Padding.medium))
         ActionButton(
             Icons.Filled.Folder,
             state.connectionState == ConnectionState.CONNECTED
@@ -268,7 +339,7 @@ fun BigPanel(
             }
         }
         ConnectionState.ERROR -> {
-            StaticText("", modifier)
+            StaticText(state.errorText ?: "", modifier)
         }
     }
 }
@@ -284,7 +355,7 @@ private fun StaticText(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = modifier
-            .padding(16.dp)
+            .padding(Padding.medium)
             .wrapContentHeight(align = Alignment.CenterVertically)
     )
 }
@@ -302,7 +373,7 @@ fun AboutDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier
             .wrapContentSize()
-            .padding(16.dp)
+            .padding(Padding.medium)
     ) {
         Surface(
             shape = MaterialTheme.shapes.medium,
@@ -311,7 +382,7 @@ fun AboutDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(Padding.large)
                     .wrapContentSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -324,33 +395,33 @@ fun AboutDialog(
                     text = "${stringResource(R.string.app_name)} ${packageInfo.versionName}",
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = Padding.medium)
                 )
 
                 Text(
                     text = sourcesUrl,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 12.sp,
+                        fontSize = FontSize.medium,
                         textDecoration = TextDecoration.Underline,
                         color = MaterialTheme.colorScheme.primary
                     ),
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .clickable { uriHandler.openUri(sourcesUrl) }
-                        .padding(top = 8.dp)
+                        .padding(top = Padding.small)
                 )
 
                 Text(
                     text = iconUrlText,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 12.sp,
+                        fontSize = FontSize.medium,
                         textDecoration = TextDecoration.Underline,
                         color = MaterialTheme.colorScheme.primary
                     ),
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .clickable { uriHandler.openUri(iconUrl) }
-                        .padding(top = 8.dp)
+                        .padding(top = Padding.small)
                 )
             }
         }
@@ -358,13 +429,33 @@ fun AboutDialog(
 }
 
 @Composable
-fun StatusText(text: String) {
+fun StatusText(text: String, modifier: Modifier = Modifier.fillMaxWidth()) {
     Text(
         text = text,
-        fontSize = 14.sp,
+        fontSize = FontSize.large,
         fontWeight = FontWeight.Normal,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
     )
+}
+
+@Composable
+fun PendingShareRow(
+    pendingShare: List<TransferEngine.File>,
+    onEvent: (MainScreenEvent) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    Row(modifier = modifier) {
+        StatusText(
+            pendingShare.getDisplayText(),
+            Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = stringResource(R.string.clear),
+            modifier = Modifier
+                .clickable { onEvent(MainScreenEvent.ClearPendingShare) }
+        )
+    }
 }
 
 @Composable
@@ -395,7 +486,7 @@ fun MenuButton() {
             val itemStyle = TextStyle(
                 fontFamily = FontFamily.Default,
                 fontWeight = FontWeight.Normal,
-                fontSize = 16.sp,
+                fontSize = FontSize.menuText,
             )
 
             DropdownMenuItem(

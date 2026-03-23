@@ -333,6 +333,8 @@ class ExchangeService : Service() {
         }
 
         fun remove() {
+            Log.d(LOG_TRACE, "remove notification")
+
             val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.cancel(NotificationIds.SERVICE)
             notificationState = null

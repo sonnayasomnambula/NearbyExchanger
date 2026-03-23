@@ -192,7 +192,7 @@ abstract class NearbyExchanger(
     }
 
     class TransferableFile (
-        private val uri: Uri,
+        val uri: Uri,
         private val context: Context,
         override val path: String = "",
         override val size: Long = 0,
@@ -445,6 +445,11 @@ abstract class NearbyExchanger(
 
         fun sendDirectory(uri: Uri) {
             val files = TransferableFile.walkDirectory(uri, context)
+            val actions = engine.send(files)
+            perform(actions)
+        }
+
+        fun sendMultiple(files: List<TransferEngine.File>) {
             val actions = engine.send(files)
             perform(actions)
         }

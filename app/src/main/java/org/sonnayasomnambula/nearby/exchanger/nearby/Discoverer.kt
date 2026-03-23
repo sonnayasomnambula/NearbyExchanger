@@ -30,11 +30,13 @@ class Discoverer(scope: CoroutineScope, context: Context)
     }
 
     override fun execute(command: ExchangeCommand) {
+        Log.d(LOG_TRACE, "execute $command")
         when (command) {
             is ExchangeCommand.ConnectEndpoint -> connectEndpoint(command.endpointId)
             is ExchangeCommand.DisconnectEndpoint -> disconnectEndpoint(command.endpointId)
             is ExchangeCommand.SendDirectory -> fileTransfer.sendDirectory(command.uri)
             is ExchangeCommand.SendFile -> fileTransfer.sendFile(command.uri)
+            is ExchangeCommand.SendMultiple -> fileTransfer.sendMultiple(command.files)
             is ExchangeCommand.StopTransfers -> fileTransfer.stopTransfers()
         }
     }
@@ -138,6 +140,7 @@ class Discoverer(scope: CoroutineScope, context: Context)
                             }
 
                             stopDiscovery()
+                            sendEvent(ExchangeEvent.EndpointConnected(connectedDevice))
                         }
                         is SessionState.Connected -> {
                             Log.w(LOG_TRACE, "Unexpected connection from $endpointId: already connected to ${session.device.endpointId}; drop")

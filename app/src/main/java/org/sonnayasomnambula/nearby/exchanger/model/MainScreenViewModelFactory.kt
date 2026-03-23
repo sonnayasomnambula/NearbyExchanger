@@ -10,9 +10,9 @@ class MainScreenViewModelFactory(
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return MainScreenViewModel(
-            app.storage,
-            app.directoryProvider,
-            app.permissionPolicy
+            storage = app.storage,
+            directoryProvider = app.directoryProvider,
+            permissionPolicy = app.permissionPolicy
         ) as T
     }
 }

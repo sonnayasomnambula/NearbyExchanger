@@ -34,6 +34,7 @@ import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEffect
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModel
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenViewModelFactory
+import org.sonnayasomnambula.nearby.exchanger.nearby.NearbyExchanger
 
 import org.sonnayasomnambula.nearby.exchanger.ui.theme.AppTheme
 
@@ -268,6 +269,46 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.onScreenEvent(MainScreenEvent.ActivityStarted)
+
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                val uri =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+
+                if (uri == null) {
+                    Toaster.show(getString(R.string.cannot_open_shared_content), this)
+                } else {
+                    viewModel.onScreenEvent(MainScreenEvent.Shared( listOf(NearbyExchanger.TransferableFile.fromUri(uri, this))))
+                }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val uris =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+                if (uris == null) {
+                    Toaster.show(getString(R.string.cannot_open_shared_content), this)
+                } else {
+                    viewModel.onScreenEvent(MainScreenEvent.Shared(
+                        files = uris.map { uri ->
+                            NearbyExchanger.TransferableFile.fromUri(uri, this)
+                        }
+                    ))
+                }
+            }
+        }
+
+        // clear the intent so that it is not delivered again
+        // (for example, when the screen is rotated)
+        intent = Intent(Intent.ACTION_MAIN)
     }
 
     override fun onStart() {

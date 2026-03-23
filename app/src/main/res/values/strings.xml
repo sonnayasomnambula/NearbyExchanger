@@ -21,6 +21,7 @@
     <string name="stop">Stop</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
+    <string name="clear">Clear</string>
     <string name="waiting">Waiting…</string>
     <string name="disconnect">Disconnect</string>
     <string name="save_to">Save to:</string>
@@ -39,4 +40,13 @@
     <string name="missing_wifi_or_bluetooth">Enable Bluetooth or Wi-Fi</string>
     <string name="missing_location">Enable location</string>
     <string name="icon_by_becris">Transfer icon created by Becris - Flaticon</string>
+    <string name="cannot_open_shared_content">Cannot open shared content</string>
+    <plurals name="pending_files_count">
+        <item quantity="one">%d file pending</item>
+        <item quantity="other">%d files pending</item>
+    </plurals>
+    <plurals name="pending_files_list">
+        <item quantity="one">%1$s pending</item>
+        <item quantity="other">Pending files: %1$s</item>
+    </plurals>
 </resources>

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,12 +13,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import org.sonnayasomnambula.nearby.exchanger.model.ConnectionState
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
-import org.sonnayasomnambula.nearby.exchanger.R
 import org.sonnayasomnambula.nearby.exchanger.model.Role
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,7 +26,7 @@ fun MainScreenPortrait(
     Column(
         modifier = Modifier
             .fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
         Box(
             modifier = Modifier
@@ -40,28 +35,17 @@ fun MainScreenPortrait(
         ) {
             Box(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(Padding.medium)
             ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.medium)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ConnectionStateText(
-                            state.connectionState,
-                            state.currentRole,
-                        )
-
-                        MenuButton()
-                    }
+                    MenuRow(state)
 
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.medium),
                         itemVerticalAlignment = Alignment.CenterVertically
                     ) {
                         RoleSelectorRow(Role.ADVERTISER, state, onEvent)
@@ -87,26 +71,15 @@ fun MainScreenPortrait(
         ) {
             Box(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(Padding.medium)
             ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.medium)
                 ) {
-                    ActionButton(
-                        text = stringResource(
-                            if (state.connectionState == ConnectionState.CONNECTED)
-                                    R.string.disconnect
-                                else
-                                    R.string.stop),
-                        enabled = state.connectionState == ConnectionState.SEARCHING ||
-                                  state.connectionState == ConnectionState.CONNECTED,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        onEvent(MainScreenEvent.DisconnectClicked)
-                    }
+                    StopButton(state.connectionState, onEvent)
 
-                    if (state.statusText.isNotEmpty()) {
-                        StatusText(state.statusText)
+                    if (state.pendingShare.isNotEmpty()) {
+                        PendingShareRow(state.pendingShare, onEvent, Modifier.fillMaxWidth())
                     }
                 }
             }

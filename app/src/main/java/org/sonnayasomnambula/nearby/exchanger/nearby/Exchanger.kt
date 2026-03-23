@@ -86,6 +86,7 @@ sealed class ExchangeCommand {
     data class DisconnectEndpoint(val endpointId: String) : ExchangeCommand()
     data class SendFile(val uri: Uri) : ExchangeCommand()
     data class SendDirectory(val uri: Uri) : ExchangeCommand()
+    data class SendMultiple(val files: List<TransferEngine.File>) : ExchangeCommand()
     data object StopTransfers : ExchangeCommand()
 }
 
