@@ -12,8 +12,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.sonnayasomnambula.nearby.exchanger.model.MainScreenState
-import org.sonnayasomnambula.nearby.exchanger.model.SaveDir
+import org.sonnayasomnambula.nearby.exchanger.main.model.MainScreenState
+import org.sonnayasomnambula.nearby.exchanger.main.model.SaveDir
 import java.io.IOException
 import androidx.core.net.toUri
 

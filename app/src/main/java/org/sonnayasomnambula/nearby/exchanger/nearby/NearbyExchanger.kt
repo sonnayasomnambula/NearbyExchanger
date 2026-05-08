@@ -12,6 +12,7 @@ import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.text.format.Formatter
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.Payload
@@ -25,9 +26,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
-import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
-import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.common.LOG_TRACE
+import org.sonnayasomnambula.nearby.exchanger.main.model.RemoteDevice
+import org.sonnayasomnambula.nearby.exchanger.main.model.Role
 import java.io.File
 import java.io.IOException
 
@@ -415,6 +416,33 @@ abstract class NearbyExchanger(
                     size = fileSize,
                     mime = mimeType
                 )
+            }
+
+            fun fromPath(paths: Array<String>, context: Context): List<TransferEngine.File> {
+                val commonPrefix = findCommonPrefix(paths)
+                return paths.map { absolutePath ->
+                    val file = java.io.File(absolutePath)
+                    val uri = Uri.fromFile(file)
+                    val relativePath = absolutePath.removePrefix(commonPrefix)
+                    TransferableFile(
+                        uri = uri,
+                        context = context,
+                        path = relativePath,
+                        size = file.length(),
+                        mime = context.contentResolver.getType(uri) ?: "*/*"
+                    )
+                }
+            }
+
+            fun findCommonPrefix(paths: Array<String>): String {
+                if (paths.isEmpty()) return ""
+                if (paths.size == 1) return java.io.File(paths[0]).parent ?: ""
+
+                var prefix = paths[0]
+                for (i in 1..paths.size - 1) {
+                    prefix = prefix.commonPrefixWith(paths[i])
+                }
+                return prefix
             }
         }
     }

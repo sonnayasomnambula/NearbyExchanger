@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    id("kotlin-parcelize")
 }
 
 android {
@@ -13,8 +14,8 @@ android {
         applicationId = "org.sonnayasomnambula.nearby.exchanger"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 5
+        versionName = "0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,10 +42,9 @@ android {
 }
 
 dependencies {
-    implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation(libs.accompanist.systemuicontroller)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.localbroadcastmanager)
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -57,24 +57,19 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.documentfile)
     implementation(libs.play.services.nearby)
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.material3)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.material.icons.extended)
+
+    // Тесты
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+
+    // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-
-    // DataStore
-    implementation(libs.androidx.datastore.preferences)
-
-    // Kotlin Serialization
-    implementation(libs.kotlinx.serialization.json)
-
-    // Coroutines
-    implementation(libs.kotlinx.coroutines.android)
-
-    implementation("androidx.compose.material:material-icons-extended")
 }

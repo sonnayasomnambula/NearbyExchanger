@@ -2,4 +2,6 @@
 <paths>
     <external-files-path name="crashes" path="crashes" />
     <external-path name="shared" path="." />
+    <external-path name="external" path="." />
+    <external-files-path name="external_files" path="." />
 </paths>

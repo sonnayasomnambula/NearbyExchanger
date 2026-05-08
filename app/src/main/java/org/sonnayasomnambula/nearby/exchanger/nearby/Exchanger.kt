@@ -3,8 +3,8 @@ package org.sonnayasomnambula.nearby.exchanger.nearby
 import android.net.Uri
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
-import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.main.model.RemoteDevice
+import org.sonnayasomnambula.nearby.exchanger.main.model.Role
 
 /// Advertising / discovery state
 sealed class SearchingMode {
@@ -65,6 +65,8 @@ data class TransferState(
     val progress: TransferProgress = TransferProgress()
 ) {
     fun transferred() : Long = statistics.totalProgress + progress.currentProgress
+    val hasData: Boolean
+        get() = statistics.hasData
 }
 
 data class ExchangeState(

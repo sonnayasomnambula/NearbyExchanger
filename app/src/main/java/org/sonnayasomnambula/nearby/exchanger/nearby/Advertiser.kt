@@ -12,9 +12,9 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import kotlinx.coroutines.CoroutineScope
-import org.sonnayasomnambula.nearby.exchanger.LOG_TRACE
-import org.sonnayasomnambula.nearby.exchanger.model.RemoteDevice
-import org.sonnayasomnambula.nearby.exchanger.model.Role
+import org.sonnayasomnambula.nearby.exchanger.common.LOG_TRACE
+import org.sonnayasomnambula.nearby.exchanger.main.model.RemoteDevice
+import org.sonnayasomnambula.nearby.exchanger.main.model.Role
 
 class Advertiser(scope: CoroutineScope, context: Context)
     : NearbyExchanger(Role.ADVERTISER, scope, context) {
