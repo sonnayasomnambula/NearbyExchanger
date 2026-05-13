@@ -6,6 +6,15 @@ plugins {
     id("kotlin-parcelize")
 }
 
+val gitHash: String by lazy {
+    try {
+        val process = Runtime.getRuntime().exec("git rev-parse --short HEAD")
+        process.inputStream.bufferedReader().readText().trim()
+    } catch (e: Exception) {
+        "unknown"
+    }
+}
+
 android {
     namespace = "org.sonnayasomnambula.nearby.exchanger"
     compileSdk = 36
@@ -18,6 +27,18 @@ android {
         versionName = "0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            val isDebuggable = name.contains("debug", ignoreCase = true)
+            val version = android.defaultConfig.versionName ?: "unknown"
+            val projectName = rootProject.name
+            val suffix = if (isDebuggable) "-d" else ""
+
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                "$projectName.$version.$gitHash$suffix.apk"
+        }
     }
 
     buildTypes {
