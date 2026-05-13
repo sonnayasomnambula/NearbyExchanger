@@ -60,6 +60,7 @@ import org.sonnayasomnambula.nearby.exchanger.main.model.Role
 import org.sonnayasomnambula.nearby.exchanger.nearby.TransferEngine
 import org.sonnayasomnambula.nearby.exchanger.common.ui.screen.FontSize
 import org.sonnayasomnambula.nearby.exchanger.common.ui.screen.Padding
+import org.sonnayasomnambula.nearby.exchanger.common.ui.screen.Spacing
 
 @Composable
 fun ConnectionState.getDisplayText(role: Role?): String {
@@ -146,7 +147,7 @@ fun RoleSelectorRow(
             .clickable(enabled = state.connectionState == ConnectionState.DISCONNECTED) {
                 onEvent(MainScreenEvent.RoleSelected(role))
             },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val textResourceId = if (role == Role.ADVERTISER) R.string.advertiser else R.string.discoverer

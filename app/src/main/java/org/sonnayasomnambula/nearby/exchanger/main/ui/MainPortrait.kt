@@ -3,8 +3,10 @@ package org.sonnayasomnambula.nearby.exchanger.main.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.sonnayasomnambula.nearby.exchanger.main.model.MainScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.main.model.MainScreenState
 import org.sonnayasomnambula.nearby.exchanger.main.model.Role
@@ -44,15 +47,31 @@ fun MainPortrait(
                 ) {
                     MenuRow(state)
 
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.medium),
-                        itemVerticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RoleSelectorRow(Role.ADVERTISER, state, onEvent)
-                        RoleSelectorRow(Role.DISCOVERER, state, onEvent)
-                        SendRow(state, onEvent, Modifier.weight(1f), Arrangement.End)
+                    Column {
+                        BoxWithConstraints {
+                            if (maxWidth < 420.dp) {
+                                Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RoleSelectorRow(Role.ADVERTISER, state, onEvent)
+                                        RoleSelectorRow(Role.DISCOVERER, state, onEvent)
+                                    }
+
+                                    SendRow(state, onEvent, Modifier.fillMaxWidth(), Arrangement.End)
+                                }
+                            } else {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RoleSelectorRow(Role.ADVERTISER, state, onEvent)
+                                    RoleSelectorRow(Role.DISCOVERER, state, onEvent)
+                                    SendRow(state, onEvent, Modifier.weight(1f), Arrangement.End)
+                                }
+                            }
+                        }
                     }
                 }
             }

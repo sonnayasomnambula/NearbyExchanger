@@ -21,9 +21,10 @@ class AndroidDeviceEnvironment(
     override val isLocationEnabled: Boolean
         get() {
             val lm = context.getSystemService(LocationManager::class.java)
-            return if (Build.VERSION.SDK_INT >= 28) {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 lm.isLocationEnabled
             } else {
+                @Suppress("DEPRECATION")
                 Settings.Secure.getInt(
                     context.contentResolver,
                     Settings.Secure.LOCATION_MODE,
