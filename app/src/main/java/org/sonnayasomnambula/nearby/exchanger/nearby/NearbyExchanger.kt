@@ -436,13 +436,28 @@ abstract class NearbyExchanger(
 
             fun findCommonPrefix(paths: Array<String>): String {
                 if (paths.isEmpty()) return ""
-                if (paths.size == 1) return java.io.File(paths[0]).parent ?: ""
-
-                var prefix = paths[0]
-                for (i in 1..paths.size - 1) {
-                    prefix = prefix.commonPrefixWith(paths[i])
+                val separator = java.io.File.separator
+                // Если файл один, общим префиксом папок будет его родительская директория (с разделителем на конце)
+                if (paths.size == 1) {
+                    val parent = java.io.File(paths[0]).parent ?: ""
+                    return if (parent.endsWith(separator)) parent else "$parent/"
                 }
-                return prefix
+
+                val targetFiles = paths.map { java.io.File(it) }
+                // Разбиваем первый путь на сегменты папок
+                var commonPieces = targetFiles[0].absolutePath.split(separator)
+
+                for (i in 1 until targetFiles.size) {
+                    val currentPieces = targetFiles[i].absolutePath.split(separator)
+                    // Оставляем только те сегменты, которые совпадают по индексу
+                    commonPieces = commonPieces.zip(currentPieces)
+                        .takeWhile { (a, b) -> a == b }
+                        .map { it.first }
+                }
+
+                // Собираем обратно в путь и обязательно добавляем слэш в конец
+                val prefix = commonPieces.joinToString(separator)
+                return if (prefix.endsWith(separator)) prefix else "$prefix$separator"
             }
         }
     }

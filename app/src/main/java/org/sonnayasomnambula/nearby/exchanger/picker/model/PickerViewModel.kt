@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable.isActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +72,7 @@ class FileNode(
     @Volatile var totalSize: Long = -1L
 ) {
     private val childrenLock = Any()
-    
+
     fun ensureChildren(): Map<String, FileNode> {
         if (!file.isDirectory) return emptyMap()
         children?.let { return it }
