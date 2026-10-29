@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,7 +20,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.sonnayasomnambula.nearby.exchanger.common.LOG_TRACE
-import kotlin.coroutines.coroutineContext
 
 enum class SelectionState {
     NotSelected,
@@ -319,7 +319,7 @@ class PickerViewModel(
     }
 
     private suspend fun recalculateNode(node: FileNode) {
-        if (!coroutineContext.isActive) return
+        if (!currentCoroutineContext().isActive) return
 
         when (node.selectionState) {
             SelectionState.NotSelected -> {
@@ -332,7 +332,7 @@ class PickerViewModel(
                     var count = 0
                     var size = 0L
                     for (child in children.values) {
-                        if (!coroutineContext.isActive) return
+                        if (!currentCoroutineContext().isActive) return
                         recalculateNode(child)
                         count += child.totalCount
                         size += child.totalSize

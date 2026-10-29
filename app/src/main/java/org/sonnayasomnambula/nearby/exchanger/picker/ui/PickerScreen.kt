@@ -1,11 +1,16 @@
 package org.sonnayasomnambula.nearby.exchanger.picker.ui
 
 import android.content.res.Configuration.UI_MODE_NIGHT_YES
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,6 +25,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
@@ -41,7 +47,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
@@ -63,11 +68,12 @@ import org.sonnayasomnambula.nearby.exchanger.picker.model.PickerScreenEvent
 import org.sonnayasomnambula.nearby.exchanger.picker.model.PickerScreenState
 import org.sonnayasomnambula.nearby.exchanger.picker.model.PickerViewModel
 import org.sonnayasomnambula.nearby.exchanger.picker.model.SelectionState
-import org.sonnayasomnambula.nearby.exchanger.picker.ui.DummyPicker.DummyDir
-import org.sonnayasomnambula.nearby.exchanger.picker.ui.DummyPicker.DummyFile
 import kotlin.random.Random
 
-
+enum class DragValue {
+    Collapsed, // Свернута (видно 2-3 строки)
+    Expanded   // Полностью развернута внутри выделенной зоны
+}
 
 fun PickerScreenState.parentName(): String? = when (this) {
     is PickerScreenState.Volumes -> null
@@ -178,10 +184,10 @@ fun List<Picker.File>.mapToFileItems() : List<FileItem> =
 
 @Preview(
     name = "Tablet",
-    widthDp = 720,
-    heightDp = 420,
+    widthDp = 420,
+    heightDp = 720,
     showBackground = true,
-//    uiMode = UI_MODE_NIGHT_YES
+    uiMode = UI_MODE_NIGHT_YES
 )
 @Composable
 fun FileListPreview() {
@@ -204,17 +210,17 @@ fun FileListPreview() {
                     WindowInsets.systemBars
                 ),
         ) {
-            PickerLandscape(dummyPicker, dummyState, {})
+            PickerPortrait(dummyPicker, dummyState, {})
         }
     }
 }
 
 @Preview(
     name = "Tablet",
-    widthDp = 720,
-    heightDp = 420,
+    widthDp = 420,
+    heightDp = 720,
     showBackground = true,
-//    uiMode = UI_MODE_NIGHT_YES
+    uiMode = UI_MODE_NIGHT_YES
 )
 @Composable
 fun VolumeListPreview() {
@@ -232,7 +238,73 @@ fun VolumeListPreview() {
                     WindowInsets.systemBars
                 ),
         ) {
-            PickerLandscape(dummyPicker, dummyState, {})
+            PickerPortrait(dummyPicker, dummyState, {})
+        }
+    }
+}
+
+@Composable
+private fun MainContentLists(
+    state: PickerScreenState,
+    onEvent: (PickerScreenEvent) -> Unit
+) {
+    when (state) {
+        is PickerScreenState.Volumes -> VolumeList(
+            volumes = state.items,
+            onEvent = onEvent,
+            modifier = Modifier.fillMaxSize()
+        )
+        is PickerScreenState.Files -> state.items.lastOrNull()?.let { files ->
+            FileList(
+                files = files,
+                onEvent = onEvent,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectedFilesOverlay(
+    state: PickerScreenState,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = state.totalCount > 0,
+        enter = slideInVertically(
+            initialOffsetY = { fullHeight -> fullHeight },
+            animationSpec = tween(durationMillis = 250)
+        ),
+        exit = slideOutVertically(
+            targetOffsetY = { fullHeight -> fullHeight },
+            animationSpec = tween(durationMillis = 200)
+        ),
+        modifier = modifier
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            tonalElevation = 3.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Padding.medium)
+            ) {
+                Text(
+                    text = "Выбрано: ${state.totalCount}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.padding(top = Padding.small))
+                Text(
+                    text = "Размер: ${humanReadableSize(state.totalSize)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
         }
     }
 }
@@ -244,13 +316,11 @@ fun PickerPortrait(
     onEvent: (PickerScreenEvent) -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
     ) {
+        // 1. Верхняя панель
         Surface(
             modifier = Modifier.fillMaxWidth(),
-//            tonalElevation = 4.dp,
-//            shadowElevation = 4.dp,
             color = MaterialTheme.colorScheme.surface
         ) {
             Row(
@@ -262,10 +332,7 @@ fun PickerPortrait(
                     onClick = { onEvent(PickerScreenEvent.Up) },
                     modifier = Modifier.size(22.dp)
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null
-                    )
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                 }
 
                 Text(
@@ -279,29 +346,24 @@ fun PickerPortrait(
             }
         }
 
-        when (state) {
-            is PickerScreenState.Volumes -> VolumeList(
-                volumes = state.items,
-                onEvent = onEvent,
-                modifier = Modifier.weight(1f)
-            )
-            is PickerScreenState.Files -> state.items.lastOrNull()?.let { files ->
-                FileList(
-                    files = files,
-                    onEvent = onEvent,
-                    modifier = Modifier.weight(1f)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            MainContentLists(state = state, onEvent = onEvent)
+
+            if (state.totalCount > 0) {
+                SelectedFilesOverlay(
+                    state = state,
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
         }
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
+        Surface(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Padding.small),
+                modifier = Modifier.padding(Padding.small).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Padding.medium),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -315,12 +377,12 @@ fun PickerPortrait(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                Button(onClick = { picker.accept() }) {
-                    Text(text = stringResource(R.string.pick))
-                }
-
                 Button(onClick = { picker.close() }) {
                     Text(text = stringResource(R.string.cancel))
+                }
+
+                Button(onClick = { picker.accept() }) {
+                    Text(text = stringResource(R.string.pick))
                 }
             }
         }
@@ -388,7 +450,6 @@ fun PickerLandscape(
                             .align(Alignment.CenterHorizontally)
                     )
                 }
-
             }
 
             Spacer(modifier = Modifier.weight(1f))

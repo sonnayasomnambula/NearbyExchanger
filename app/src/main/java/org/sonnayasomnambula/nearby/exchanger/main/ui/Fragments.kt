@@ -279,7 +279,8 @@ fun SendRow(
         Spacer(modifier = Modifier.width(16.dp))
         ActionButton(
             Icons.Filled.AddCircle,
-            state.connectionState == ConnectionState.CONNECTED && !state.hasActiveTransfer
+            true
+//            state.connectionState == ConnectionState.CONNECTED && !state.hasActiveTransfer
         ) {
             onEvent(MainScreenEvent.SendCustomClicked)
         }
